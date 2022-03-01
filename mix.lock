@@ -1,0 +1,8 @@
+%{
+  "blake2": {:hex, :blake2, "1.0.4", "8263c69a191142922bc2510f1ffc0de0ae96e8c3bd5e2ad3fac7e87aed94c8b1", [:mix], [], "hexpm", "e9f4120d163ba14d86304195e50745fa18483e6ad2be94c864ae449bbdd6a189"},
+  "equivalex": {:hex, :equivalex, "1.0.2", "b9a9aaf79f2556288f514218653beaddb15afa2af407bfec37c5c4906e39f514", [:mix], [], "hexpm", "f7f8127c59be715ee6288f8c59fa8fc40e6428fb5c9bd2a001de2c9b1ff3f1c2"},
+  "lipmaa": {:hex, :lipmaa, "0.2.0", "cf105c859d08dda879c93c235d7698a25c627ca2b809909aa79f76ae3705d311", [:mix], [], "hexpm", "116bac599b46b8f7067430553b02bb77586953dee0c62f928ea3675486a30b0d"},
+  "stlv": {:hex, :stlv, "0.2.0", "a2b451b3f126c6223fdb5a215170193516ab0f7c3357d8792b6e2af5eabe10d6", [:mix], [{:varu64, ">= 0.0.0", [hex: :varu64, repo: "hexpm", optional: false]}], "hexpm", "6c267acbd0fea7915e48da57ab29fc819ecea64374bfe758fc79b81758473b1b"},
+  "varu64": {:hex, :varu64, "0.2.0", "9fb349e2d11e6028328e51af201523718902198dd8b57e859d587cc8d3838bf1", [:mix], [], "hexpm", "1b5e046734f4c692498d1805f75023b6f744e5a6077d485e7c4c53ad89fc2781"},
+  "yamfhash": {:hex, :yamfhash, "0.1.0", "d5796eb8bcd3629f1ac9db7c97a6603e49954080f1c12d7317179e50bafe948b", [:mix], [{:blake2, ">= 1.0.0", [hex: :blake2, repo: "hexpm", optional: false]}, {:equivalex, "~> 1.0", [hex: :equivalex, repo: "hexpm", optional: false]}, {:stlv, ">= 0.0.0", [hex: :stlv, repo: "hexpm", optional: false]}], "hexpm", "e529beb9c4efb15d82179e22f539c4acbb9c2ffd37b8e09607374f18898ac067"},
+}
