@@ -1,4 +1,13 @@
 defmodule Baobab.Line do
+  alias Baobab.Line.Validator
+
+  @typedoc """
+  A tuple referring to a specific log line
+
+  {author, log_id, seqnum}
+  """
+  @type line_id :: {binary, non_neg_integer, pos_integer}
+
   defstruct tag: <<0>>,
             author:
               <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -18,19 +27,15 @@ defmodule Baobab.Line do
                 0, 0, 0, 0, 0, 0, 0, 0>>,
             payload: ""
 
-  def open(log_entry) do
-    log_entry |> Baobab.entry_file(:content) |> from_binary
-  end
-
-  def create(author, log_id, payload) do
-    %Baobab.Line{seqnum: bl} = Baobab.max_entry(author, log_id) |> IO.inspect()
+  def create(payload, author, log_id \\ 0) do
+    %Baobab.Line{seqnum: bl} = Baobab.max_line(author, log_id) |> IO.inspect()
     seq = bl + 1
-    backl = Baobab.entry_file({author, log_id, bl}, :hash)
+    backl = file({author, log_id, bl}, :hash)
 
     ll =
       case Lipmaa.linkseq(seq) do
         ^bl -> nil
-        n -> Baobab.entry_file({author, log_id, n}, :hash)
+        n -> file({author, log_id, n}, :hash)
       end
 
     size = byte_size(payload)
@@ -49,7 +54,13 @@ defmodule Baobab.Line do
     }
   end
 
-  def from_binary(<<tag::binary-size(1), author::binary-size(32), rest::binary>>) do
+  def by_id(line_id) do
+    line_id
+    |> file(:content)
+    |> from_binary()
+  end
+
+  defp from_binary(<<tag::binary-size(1), author::binary-size(32), rest::binary>>) do
     add_logid(%Baobab.Line{tag: tag, author: author}, rest)
   end
 
@@ -93,11 +104,11 @@ defmodule Baobab.Line do
   end
 
   defp add_payload(map) do
-    validate(
+    Validator.validate(
       Map.put(
         map,
         :payload,
-        Baobab.payload_file(
+        payload_file(
           {Map.fetch!(map, :author), Map.fetch!(map, :log_id), Map.fetch!(map, :seqnum)},
           :content
         )
@@ -105,10 +116,39 @@ defmodule Baobab.Line do
     )
   end
 
-  defp validate(map) do
-    case Baobab.is_valid_entry?(map) do
-      true -> map
-      false -> :error
+  @spec file(line_id, atom) :: binary | :error
+  def file(line_id, which),
+    do: handle_seq_file(line_id, "entry", which)
+
+  @spec payload_file(line_id, atom) :: binary | :error
+  defp payload_file(line_id, which),
+    do: handle_seq_file(line_id, "payload", which)
+
+  defp handle_seq_file({author, log_id, seq}, name, how) do
+    a = BaseX.Base62.encode(author)
+    s = Integer.to_string(seq)
+    n = Path.join([hashed_dir({a, Integer.to_string(log_id), s}), name <> "_" <> s])
+
+    case how do
+      :name ->
+        n
+
+      :content ->
+        case File.read(n) do
+          {:ok, c} -> c
+          _ -> :error
+        end
+
+      :hash ->
+        case File.read(n) do
+          {:ok, c} -> YAMFhash.create(c, 0)
+          _ -> :error
+        end
     end
+  end
+
+  defp hashed_dir({author, log_id, seq}) do
+    {top, bot} = seq |> Blake2.hash2b(2) |> Base.encode16(case: :lower) |> String.split_at(2)
+    Path.join([Baobab.log_dir(author, log_id), top, bot])
   end
 end
