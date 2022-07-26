@@ -127,7 +127,7 @@ defmodule Baobab.Line do
   defp handle_seq_file({author, log_id, seq}, name, how) do
     a = BaseX.Base62.encode(author)
     s = Integer.to_string(seq)
-    n = Path.join([hashed_dir({a, Integer.to_string(log_id), s}), name <> "_" <> s])
+    n = Path.join([hashed_dir({a, log_id, s}), name <> "_" <> s])
 
     case how do
       :name ->
@@ -146,6 +146,9 @@ defmodule Baobab.Line do
         end
     end
   end
+
+  defp hashed_dir({author, log_id, seq}) when is_integer(log_id),
+    do: hashed_dir({author, Integer.to_string(log_id), seq})
 
   defp hashed_dir({author, log_id, seq}) do
     {top, bot} = seq |> Blake2.hash2b(2) |> Base.encode16(case: :lower) |> String.split_at(2)
