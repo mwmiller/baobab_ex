@@ -28,7 +28,7 @@ defmodule Baobab.Line do
             payload: ""
 
   def create(payload, author, log_id \\ 0) do
-    %Baobab.Line{seqnum: bl} = Baobab.max_line(author, log_id) |> IO.inspect()
+    %Baobab.Line{seqnum: bl} = Baobab.max_line(author, log_id)
     seq = bl + 1
     backl = file({author, log_id, bl}, :hash)
 
@@ -126,8 +126,7 @@ defmodule Baobab.Line do
 
   defp handle_seq_file({author, log_id, seq}, name, how) do
     a = BaseX.Base62.encode(author)
-    s = Integer.to_string(seq)
-    n = Path.join([hashed_dir({a, log_id, s}), name <> "_" <> s])
+    n = Path.join([content_dir({a, log_id, seq}), name <> "_" <> Integer.to_string(seq)])
 
     case how do
       :name ->
@@ -147,11 +146,12 @@ defmodule Baobab.Line do
     end
   end
 
-  defp hashed_dir({author, log_id, seq}) when is_integer(log_id),
-    do: hashed_dir({author, Integer.to_string(log_id), seq})
+  defp content_dir({author, log_id, seq}) when is_integer(log_id),
+    do: content_dir({author, Integer.to_string(log_id), seq})
 
-  defp hashed_dir({author, log_id, seq}) do
-    {top, bot} = seq |> Blake2.hash2b(2) |> Base.encode16(case: :lower) |> String.split_at(2)
-    Path.join([Baobab.log_dir(author, log_id), top, bot])
+  defp content_dir({author, log_id, seq}) do
+    Path.join([Baobab.log_dir(author, log_id), pp(seq, 13), pp(seq, 11)])
   end
+
+  defp pp(n, m), do: n |> rem(m) |> Integer.to_string()
 end

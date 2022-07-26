@@ -22,7 +22,6 @@ defmodule Baobab.MixProject do
   defp deps do
     [
       {:basex, ">= 0.0.0"},
-      {:blake2, ">= 1.0.0"},
       {:ed25519, "~> 1.4"},
       {:lipmaa, ">= 0.0.0"},
       {:varu64, "~> 0.2.0"},
