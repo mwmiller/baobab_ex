@@ -6,14 +6,7 @@ defmodule Baobab.Line.Validator do
         :error
 
       true ->
-        latest = Baobab.max_seqnum(author, log_id)
-
-        chain =
-          seq
-          |> Lipmaa.cert_pool()
-          |> Enum.reject(fn n -> n > latest end)
-
-        case verify_chain(chain, {author, log_id}, true) do
+        case verify_chain(Baobab.certificate_pool({author, log_id, seq}), {author, log_id}, true) do
           false -> :error
           true -> line
         end
