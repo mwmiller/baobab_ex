@@ -1,13 +1,43 @@
 defmodule Baobab.Line.Validator do
   @spec validate(Baobab.Line.t()) :: Baobab.Line.t() | :error
-  def validate(%Baobab.Line{} = map) do
-    case valid_line?(map) do
-      true -> map
-      false -> :error
+  def validate(%Baobab.Line{seqnum: seq, author: author, log_id: log_id} = line) do
+    case valid_line?(line) do
+      false ->
+        :error
+
+      true ->
+        latest = Baobab.max_seqnum(author, log_id)
+
+        chain =
+          seq
+          |> Lipmaa.cert_pool()
+          |> Enum.reject(fn n -> n > latest end)
+
+        case verify_chain(chain, {author, log_id}, true) do
+          false -> :error
+          true -> line
+        end
     end
   end
 
   def validate(_), do: :error
+
+  defp verify_chain([], _log, answer), do: answer
+  defp verify_chain(_links, _log, false), do: false
+
+  defp verify_chain([seq | rest], {author, log_id} = which, answer) do
+    truth =
+      case Baobab.Line.by_id({author, log_id, seq}, false) do
+        :error -> false
+        link -> valid_link?(link)
+      end
+
+    verify_chain(rest, which, answer and truth)
+  end
+
+  defp valid_link?(line) do
+    valid_sig?(line) and valid_backlink?(line) and valid_lipmaalink?(line)
+  end
 
   @spec valid_line?(Baobab.Line.t()) :: boolean
   def valid_line?(line) do

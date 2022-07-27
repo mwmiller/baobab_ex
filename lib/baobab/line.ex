@@ -1,6 +1,4 @@
 defmodule Baobab.Line do
-  alias Baobab.Line.Validator
-
   @typedoc """
   A tuple referring to a specific log line
 
@@ -54,15 +52,26 @@ defmodule Baobab.Line do
     }
   end
 
-  def by_id(line_id) do
+  def by_id(line_id, validate \\ true) do
     line_id
     |> file(:content)
-    |> from_binary()
+    |> from_binary(validate)
   end
 
+  defp from_binary(bin, false), do: from_binary(bin)
+  defp from_binary(bin, true), do: bin |> from_binary |> Baobab.Line.Validator.validate()
+  defp from_binary(_, _), do: :error
+
   defp from_binary(<<tag::binary-size(1), author::binary-size(32), rest::binary>>) do
-    add_logid(%Baobab.Line{tag: tag, author: author}, rest)
+    # This needs better diagnostics eventually
+    try do
+      add_logid(%Baobab.Line{tag: tag, author: author}, rest)
+    rescue
+      _ -> :error
+    end
   end
+
+  defp from_binary(_), do: :error
 
   defp add_logid(map, bin) do
     {logid, rest} = Varu64.decode(bin)
@@ -74,7 +83,6 @@ defmodule Baobab.Line do
     add_lipmaa(Map.put(map, :seqnum, seqnum), rest, seqnum)
   end
 
-  # This needs to be extensible sooner or later
   defp add_lipmaa(map, bin, 1), do: add_size(map, bin)
 
   defp add_lipmaa(map, full = <<yamfh::binary-size(66), rest::binary>>, seq) do
@@ -103,17 +111,8 @@ defmodule Baobab.Line do
     add_payload(Map.put(map, :sig, sig))
   end
 
-  defp add_payload(map) do
-    Validator.validate(
-      Map.put(
-        map,
-        :payload,
-        payload_file(
-          {Map.fetch!(map, :author), Map.fetch!(map, :log_id), Map.fetch!(map, :seqnum)},
-          :content
-        )
-      )
-    )
+  defp add_payload(%Baobab.Line{author: author, log_id: log_id, seqnum: seqnum} = map) do
+    Map.put(map, :payload, payload_file({author, log_id, seqnum}, :content))
   end
 
   @spec file(line_id, atom) :: binary | :error

@@ -10,19 +10,20 @@ defmodule Baobab do
     32
   )
 
-  def max_line(author, log_id) do
+  def max_seqnum(author, log_id) do
     a = BaseX.Base62.encode(author)
 
-    max =
-      [log_dir(a, log_id), "**", "{entry_*}"]
-      |> Path.join()
-      |> Path.wildcard()
-      |> Enum.map(fn n -> Path.basename(n) end)
-      |> Enum.reduce(0, fn n, a ->
-        Enum.max([a, n |> String.split("_") |> List.last() |> String.to_integer()])
-      end)
+    [log_dir(a, log_id), "**", "{entry_*}"]
+    |> Path.join()
+    |> Path.wildcard()
+    |> Enum.map(fn n -> Path.basename(n) end)
+    |> Enum.reduce(0, fn n, a ->
+      Enum.max([a, n |> String.split("_") |> List.last() |> String.to_integer()])
+    end)
+  end
 
-    Baobab.Line.by_id({author, log_id, max})
+  def max_line(author, log_id) do
+    Baobab.Line.by_id({author, log_id, max_seqnum(author, log_id)})
   end
 
   def key_file(id, which) do
