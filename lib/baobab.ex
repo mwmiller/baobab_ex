@@ -4,16 +4,16 @@ defmodule Baobab do
   [Bamboo](https://github.com/AljoschaMeyer/bamboo) append-only log.
 
   It is fairly opinionated about the filesystem persistence of the logs.
-  They are considered to be a "spool" of the logs as retreived.
+  They are considered to be a spool of the logs as retreived.
 
   Consumers of this library may wish to place a local copy of the logs in
   a store with better indexing and query properties.
 
   ### Configuration
 
+  config :baobab, spool_dir: "/tmp"
   """
 
-  @configdir "/Users/matt/baobab"
   BaseX.prepare_module(
     "Base62",
     "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
@@ -109,7 +109,12 @@ defmodule Baobab do
   """
   def identity_key(id, which) do
     {:ok, key} =
-      Path.join([@configdir, "identity", id, Atom.to_string(which)])
+      Path.join([
+        Application.fetch_env!(:baobab, :spool_dir),
+        "identity",
+        id,
+        Atom.to_string(which)
+      ])
       |> File.read()
 
     key
@@ -120,6 +125,6 @@ defmodule Baobab do
     do: log_dir(author, Integer.to_string(log_id))
 
   def log_dir(author, log_id) do
-    Path.join([@configdir, "content", author, log_id])
+    Path.join([Application.fetch_env!(:baobab, :spool_dir), "content", author, log_id])
   end
 end
