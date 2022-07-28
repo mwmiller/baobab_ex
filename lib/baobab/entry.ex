@@ -30,32 +30,31 @@ defmodule Baobab.Entry do
 
   @doc """
   Create a new entry from a stored identity
+
+  Does not yet support writing an end of log tag
   """
-  def create(payload, author, log_id \\ 0) do
+  def create(payload, identity, log_id \\ 0) do
+    author = Baobab.identity_key(identity, :public)
+    signer = Baobab.identity_key(identity, :secret)
     %Baobab.Entry{seqnum: bl} = Baobab.max_entry(author, log_id)
     seq = bl + 1
-    backl = file({author, log_id, bl}, :hash)
+    :ok = handle_seq_file({author, log_id, seq}, "payload", :write, payload)
+    head = <<0>> <> author <> Varu64.encode(log_id) <> Varu64.encode(seq)
 
     ll =
       case Lipmaa.linkseq(seq) do
-        ^bl -> nil
+        ^bl -> <<>>
         n -> file({author, log_id, n}, :hash)
       end
 
-    size = byte_size(payload)
-    payload_hash = YAMFhash.create(payload, 0)
+    tail =
+      file({author, log_id, bl}, :hash) <>
+        Varu64.encode(byte_size(payload)) <> YAMFhash.create(payload, 0)
 
-    %Baobab.Entry{
-      tag: <<0>>,
-      author: author,
-      log_id: log_id,
-      seqnum: seq,
-      lipmaalink: ll,
-      backlink: backl,
-      size: size,
-      payload_hash: payload_hash,
-      payload: payload
-    }
+    meat = head <> ll <> tail
+    sig = Ed25519.signature(meat, signer, author)
+    :ok = handle_seq_file({author, log_id, seq}, "entry", :write, meat <> sig)
+    by_id({author, log_id, seq})
   end
 
   @doc """
@@ -135,9 +134,10 @@ defmodule Baobab.Entry do
   defp payload_file(entry_id, which),
     do: handle_seq_file(entry_id, "payload", which)
 
-  defp handle_seq_file({author, log_id, seq}, name, how) do
+  defp handle_seq_file({author, log_id, seq}, name, how, content \\ nil) do
     a = BaseX.Base62.encode(author)
-    n = Path.join([content_dir({a, log_id, seq}), name <> "_" <> Integer.to_string(seq)])
+    p = content_dir({a, log_id, seq})
+    n = Path.join([p, name <> "_" <> Integer.to_string(seq)])
 
     case how do
       :name ->
@@ -154,6 +154,10 @@ defmodule Baobab.Entry do
           {:ok, c} -> YAMFhash.create(c, 0)
           _ -> :error
         end
+
+      :write ->
+        File.mkdir_p(p)
+        File.write(n, content)
     end
   end
 
