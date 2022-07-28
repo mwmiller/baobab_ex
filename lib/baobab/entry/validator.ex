@@ -1,5 +1,13 @@
 defmodule Baobab.Entry.Validator do
-  @spec validate(Baobab.Entry.t()) :: Baobab.Entry.t() | :error
+  @moduledoc """
+  Validation of `Baobab.Entry` structs
+  """
+  @doc """
+  Validate a `Baobab.Entry` struct
+
+  Includes validation of its available certificate pool
+  """
+  @spec validate(%Baobab.Entry{}) :: %Baobab.Entry{} | :error
   def validate(%Baobab.Entry{seqnum: seq, author: author, log_id: log_id} = entry) do
     case valid_entry?(entry) do
       false ->
@@ -32,13 +40,25 @@ defmodule Baobab.Entry.Validator do
     valid_sig?(entry) and valid_backlink?(entry) and valid_lipmaalink?(entry)
   end
 
-  @spec valid_entry?(Baobab.Entry.t()) :: boolean
+  @doc """
+  Validate a `Baobab.Entry` without full certificate pool verification.
+
+  Confirms:
+    - Signature
+    - Payload hash
+    - Backlink
+    - Lipmaalink
+  """
+  @spec valid_entry?(%Baobab.Entry{}) :: boolean
   def valid_entry?(entry) do
     valid_sig?(entry) and valid_payload_hash?(entry) and valid_backlink?(entry) and
       valid_lipmaalink?(entry)
   end
 
-  @spec valid_sig?(Baobab.Entry.t()) :: boolean
+  @doc """
+  Validate the `sig` field of a `Baobab.Entry`
+  """
+  @spec valid_sig?(%Baobab.Entry{}) :: boolean
   def valid_sig?(%Baobab.Entry{
         sig: sig,
         author: author,
@@ -49,12 +69,18 @@ defmodule Baobab.Entry.Validator do
     Ed25519.valid_signature?(sig, :binary.part(wsig, {0, byte_size(wsig) - 64}), author)
   end
 
-  @spec valid_payload_hash?(Baobab.Entry.t()) :: boolean
+  @doc """
+  Validate the `payload_hash` field of a `Baobab.Entry`
+  """
+  @spec valid_payload_hash?(%Baobab.Entry{}) :: boolean
   def valid_payload_hash?(%Baobab.Entry{payload: payload, payload_hash: hash}) do
     YAMFhash.verify(hash, payload) == ""
   end
 
-  @spec valid_lipmaalink?(Baobab.Entry.t()) :: boolean
+  @doc """
+  Validate the `lipmaalink` field of a `Baobab.Entry`
+  """
+  @spec valid_lipmaalink?(%Baobab.Entry{}) :: boolean
   def valid_lipmaalink?(%Baobab.Entry{seqnum: 1}), do: true
 
   def valid_lipmaalink?(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, lipmaalink: ll}) do
@@ -65,7 +91,10 @@ defmodule Baobab.Entry.Validator do
     end
   end
 
-  @spec valid_backlink?(Baobab.Entry.t()) :: boolean
+  @doc """
+  Validate the `backlink` field of a `Baobab.Entry`
+  """
+  @spec valid_backlink?(%Baobab.Entry{}) :: boolean
   def valid_backlink?(%Baobab.Entry{seqnum: 1}), do: true
   def valid_backlink?(%Baobab.Entry{backlink: nil}), do: false
 

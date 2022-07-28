@@ -1,4 +1,7 @@
 defmodule Baobab.Entry do
+  @moduledoc """
+  A struct representing a Baobab entry
+  """
   @typedoc """
   A tuple referring to a specific log entry
 
@@ -25,6 +28,9 @@ defmodule Baobab.Entry do
                 0, 0, 0, 0, 0, 0, 0, 0>>,
             payload: ""
 
+  @doc """
+  Create a new entry from a stored identity
+  """
   def create(payload, author, log_id \\ 0) do
     %Baobab.Entry{seqnum: bl} = Baobab.max_entry(author, log_id)
     seq = bl + 1
@@ -52,6 +58,11 @@ defmodule Baobab.Entry do
     }
   end
 
+  @doc """
+  Retrieve an entry by its id.
+
+  Validated by default, pass `false` for unvalidated retrieval.
+  """
   def by_id(entry_id, validate \\ true) do
     entry_id
     |> file(:content)
@@ -116,6 +127,7 @@ defmodule Baobab.Entry do
   end
 
   @spec file(entry_id, atom) :: binary | :error
+  @doc false
   def file(entry_id, which),
     do: handle_seq_file(entry_id, "entry", which)
 

@@ -1,6 +1,16 @@
 defmodule Baobab do
   @moduledoc """
-  Documentation for `Baobab`.
+  Baobab is a pure Elixir implementation of the 
+  [Bamboo](https://github.com/AljoschaMeyer/bamboo) append-only log.
+
+  It is fairly opinionated about the filesystem persistence of the logs.
+  They are considered to be a "spool" of the logs as retreived.
+
+  Consumers of this library may wish to place a local copy of the logs in
+  a store with better indexing and query properties.
+
+  ### Configuration
+
   """
 
   @configdir "/Users/matt/baobab"
@@ -10,9 +20,24 @@ defmodule Baobab do
     32
   )
 
-  # We do not re-verify on the way out
+  @doc """
+  Retrieve the latest entry.
+
+  Includes the available certificate pool for its verification.
+
+  Note that the persisted structure is considered verified.  It is not revalidated
+  upon retrieval.
+  """
   def latest_log(author, log_id \\ 0), do: log_at({author, log_id, max_seqnum(author, log_id)})
 
+  @doc """
+  Retrieve the log at a particular `entry_id`.
+
+  Includes the available certificate pool for its verification.
+
+  Note that the persisted structure is considered verified.  It is not revalidated
+  upon retrieval.
+  """
   def log_at({author, log_id, _seq} = entry_id) do
     entry_id
     |> certificate_pool
@@ -20,6 +45,12 @@ defmodule Baobab do
     |> Enum.map(fn n -> Baobab.Entry.by_id({author, log_id, n}, false) end)
   end
 
+  @doc """
+  Retrieve all available entries in a particular log
+
+  Note that the persisted structure is considered verified.  It is not revalidated
+  upon retrieval.
+  """
   def full_log(author, log_id \\ 0) do
     gather_all_entries(author, log_id, max_seqnum(author, log_id), [])
   end
@@ -36,11 +67,21 @@ defmodule Baobab do
     gather_all_entries(author, log_id, n - 1, newacc)
   end
 
+  @doc """
+  Compute the current certificate pool path for a given `entry_id` tuple.
+
+  The certificate pool may include entries beyond the given entry in order
+  to ensure consistency with the larger structure.
+  """
   def certificate_pool({author, log_id, seq}) do
     max = max_seqnum(author, log_id)
     seq |> Lipmaa.cert_pool() |> Enum.reject(fn n -> n > max end)
   end
 
+  @doc """
+  Retrieve the latest sequence number on a particular log identified by the
+  author key and log number
+  """
   def max_seqnum(author, log_id \\ 0) do
     a = BaseX.Base62.encode(author)
 
@@ -53,10 +94,19 @@ defmodule Baobab do
     end)
   end
 
+  @doc """
+  Retrieve the latest entry on a particular log identified by the
+  author key and log number
+  """
   def max_entry(author, log_id \\ 0) do
     Baobab.Entry.by_id({author, log_id, max_seqnum(author, log_id)})
   end
 
+  @doc """
+  Retrieve the key for a stored identity.
+
+  Can be either the `:public` or `:secret` key
+  """
   def identity_key(id, which) do
     {:ok, key} =
       Path.join([@configdir, "identity", id, Atom.to_string(which)])

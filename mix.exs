@@ -21,9 +21,10 @@ defmodule Baobab.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:basex, ">= 0.0.0"},
       {:ed25519, "~> 1.4"},
-      {:lipmaa, ">= 0.0.0"},
+      {:lipmaa, ">= 1.1.0"},
       {:varu64, "~> 0.2.0"},
       {:yamfhash, ">= 0.0.0"}
     ]
