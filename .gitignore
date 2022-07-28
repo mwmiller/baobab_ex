@@ -24,3 +24,6 @@ baobab-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Finder nonsense
+.DS_Store
