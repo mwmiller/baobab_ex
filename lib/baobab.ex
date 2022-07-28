@@ -103,19 +103,27 @@ defmodule Baobab do
   end
 
   @doc """
+  Create and store a new identity
+  """
+  # Maybe make it possible to provide secret ket or both
+  # No overwiting? Error handling?
+  def create_identity(identity) do
+    {secret, public} = Ed25519.generate_key_pair()
+    where = id_dir(identity)
+    File.mkdir_p(where)
+    File.write!(Path.join([where, "secret"]), secret)
+    File.write!(Path.join([where, "public"]), public)
+
+    BaseX.Base62.encode(public)
+  end
+
+  @doc """
   Retrieve the key for a stored identity.
 
   Can be either the `:public` or `:secret` key
   """
-  def identity_key(id, which) do
-    {:ok, key} =
-      Path.join([
-        Application.fetch_env!(:baobab, :spool_dir),
-        "identity",
-        id,
-        Atom.to_string(which)
-      ])
-      |> File.read()
+  def identity_key(identity, which) do
+    {:ok, key} = Path.join([id_dir(identity), Atom.to_string(which)]) |> File.read()
 
     key
   end
@@ -127,4 +135,7 @@ defmodule Baobab do
   def log_dir(author, log_id) do
     Path.join([Application.fetch_env!(:baobab, :spool_dir), "content", author, log_id])
   end
+
+  defp id_dir(identity),
+    do: Path.join([Application.fetch_env!(:baobab, :spool_dir), "identity", identity])
 end
