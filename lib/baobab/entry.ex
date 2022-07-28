@@ -36,22 +36,26 @@ defmodule Baobab.Entry do
   def create(payload, identity, log_id \\ 0) do
     author = Baobab.identity_key(identity, :public)
     signer = Baobab.identity_key(identity, :secret)
-    %Baobab.Entry{seqnum: bl} = Baobab.max_entry(author, log_id)
-    seq = bl + 1
+    prev = Baobab.max_seqnum(author, log_id)
+    seq = prev + 1
     :ok = handle_seq_file({author, log_id, seq}, "payload", :write, payload)
     head = <<0>> <> author <> Varu64.encode(log_id) <> Varu64.encode(seq)
 
     ll =
       case Lipmaa.linkseq(seq) do
-        ^bl -> <<>>
+        ^prev -> <<>>
         n -> file({author, log_id, n}, :hash)
       end
 
-    tail =
-      file({author, log_id, bl}, :hash) <>
-        Varu64.encode(byte_size(payload)) <> YAMFhash.create(payload, 0)
+    bl =
+      case prev do
+        0 -> <<>>
+        n -> file({author, log_id, n}, :hash)
+      end
 
-    meat = head <> ll <> tail
+    tail = Varu64.encode(byte_size(payload)) <> YAMFhash.create(payload, 0)
+
+    meat = head <> ll <> bl <> tail
     sig = Ed25519.signature(meat, signer, author)
     :ok = handle_seq_file({author, log_id, seq}, "entry", :write, meat <> sig)
     by_id({author, log_id, seq})
