@@ -11,7 +11,7 @@ defmodule Baobab do
   )
 
   # We do not re-verify on the way out
-  def latest_log(author, log_id), do: log_at({author, log_id, max_seqnum(author, log_id)})
+  def latest_log(author, log_id \\ 0), do: log_at({author, log_id, max_seqnum(author, log_id)})
 
   def log_at({author, log_id, _seq} = entry_id) do
     entry_id
@@ -20,7 +20,7 @@ defmodule Baobab do
     |> Enum.map(fn n -> Baobab.Entry.by_id({author, log_id, n}, false) end)
   end
 
-  def full_log(author, log_id) do
+  def full_log(author, log_id \\ 0) do
     gather_all_entries(author, log_id, max_seqnum(author, log_id), [])
   end
 
@@ -41,7 +41,7 @@ defmodule Baobab do
     seq |> Lipmaa.cert_pool() |> Enum.reject(fn n -> n > max end)
   end
 
-  def max_seqnum(author, log_id) do
+  def max_seqnum(author, log_id \\ 0) do
     a = BaseX.Base62.encode(author)
 
     [log_dir(a, log_id), "**", "{entry_*}"]
@@ -53,7 +53,7 @@ defmodule Baobab do
     end)
   end
 
-  def max_entry(author, log_id) do
+  def max_entry(author, log_id \\ 0) do
     Baobab.Entry.by_id({author, log_id, max_seqnum(author, log_id)})
   end
 
