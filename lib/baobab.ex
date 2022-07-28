@@ -57,7 +57,7 @@ defmodule Baobab do
     Baobab.Entry.by_id({author, log_id, max_seqnum(author, log_id)})
   end
 
-  def key_file(id, which) do
+  def identity_key(id, which) do
     {:ok, key} =
       Path.join([@configdir, "identity", id, Atom.to_string(which)])
       |> File.read()
