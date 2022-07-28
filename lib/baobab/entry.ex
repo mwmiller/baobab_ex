@@ -1,10 +1,10 @@
-defmodule Baobab.Line do
+defmodule Baobab.Entry do
   @typedoc """
-  A tuple referring to a specific log line
+  A tuple referring to a specific log entry
 
   {author, log_id, seqnum}
   """
-  @type line_id :: {binary, non_neg_integer, pos_integer}
+  @type entry_id :: {binary, non_neg_integer, pos_integer}
 
   defstruct tag: <<0>>,
             author:
@@ -26,7 +26,7 @@ defmodule Baobab.Line do
             payload: ""
 
   def create(payload, author, log_id \\ 0) do
-    %Baobab.Line{seqnum: bl} = Baobab.max_line(author, log_id)
+    %Baobab.Entry{seqnum: bl} = Baobab.max_entry(author, log_id)
     seq = bl + 1
     backl = file({author, log_id, bl}, :hash)
 
@@ -39,7 +39,7 @@ defmodule Baobab.Line do
     size = byte_size(payload)
     payload_hash = YAMFhash.create(payload, 0)
 
-    %Baobab.Line{
+    %Baobab.Entry{
       tag: <<0>>,
       author: author,
       log_id: log_id,
@@ -52,20 +52,20 @@ defmodule Baobab.Line do
     }
   end
 
-  def by_id(line_id, validate \\ true) do
-    line_id
+  def by_id(entry_id, validate \\ true) do
+    entry_id
     |> file(:content)
     |> from_binary(validate)
   end
 
   defp from_binary(bin, false), do: from_binary(bin)
-  defp from_binary(bin, true), do: bin |> from_binary |> Baobab.Line.Validator.validate()
+  defp from_binary(bin, true), do: bin |> from_binary |> Baobab.Entry.Validator.validate()
   defp from_binary(_, _), do: :error
 
   defp from_binary(<<tag::binary-size(1), author::binary-size(32), rest::binary>>) do
     # This needs better diagnostics eventually
     try do
-      add_logid(%Baobab.Line{tag: tag, author: author}, rest)
+      add_logid(%Baobab.Entry{tag: tag, author: author}, rest)
     rescue
       _ -> :error
     end
@@ -111,17 +111,17 @@ defmodule Baobab.Line do
     add_payload(Map.put(map, :sig, sig))
   end
 
-  defp add_payload(%Baobab.Line{author: author, log_id: log_id, seqnum: seqnum} = map) do
+  defp add_payload(%Baobab.Entry{author: author, log_id: log_id, seqnum: seqnum} = map) do
     Map.put(map, :payload, payload_file({author, log_id, seqnum}, :content))
   end
 
-  @spec file(line_id, atom) :: binary | :error
-  def file(line_id, which),
-    do: handle_seq_file(line_id, "entry", which)
+  @spec file(entry_id, atom) :: binary | :error
+  def file(entry_id, which),
+    do: handle_seq_file(entry_id, "entry", which)
 
-  @spec payload_file(line_id, atom) :: binary | :error
-  defp payload_file(line_id, which),
-    do: handle_seq_file(line_id, "payload", which)
+  @spec payload_file(entry_id, atom) :: binary | :error
+  defp payload_file(entry_id, which),
+    do: handle_seq_file(entry_id, "payload", which)
 
   defp handle_seq_file({author, log_id, seq}, name, how) do
     a = BaseX.Base62.encode(author)
