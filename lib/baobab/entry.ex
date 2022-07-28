@@ -94,21 +94,24 @@ defmodule Baobab.Entry do
 
   defp add_sequence_num(map, bin) do
     {seqnum, rest} = Varu64.decode(bin)
-    add_lipmaa(Map.put(map, :seqnum, seqnum), rest, seqnum)
+    add_lipmaa(Map.put(map, :seqnum, seqnum), rest)
   end
 
-  defp add_lipmaa(map, bin, 1), do: add_size(map, bin)
+  defp add_lipmaa(%Baobab.Entry{seqnum: 1} = map, bin), do: add_size(map, bin)
 
-  defp add_lipmaa(map, full = <<yamfh::binary-size(66), rest::binary>>, seq) do
+  defp add_lipmaa(
+         %Baobab.Entry{seqnum: seq} = map,
+         full = <<yamfh::binary-size(66), rest::binary>>
+       ) do
     ll = Lipmaa.linkseq(seq)
 
     case ll == seq - 1 do
-      true -> add_backlink(map, full, seq)
-      false -> add_backlink(Map.put(map, :lipmaalink, yamfh), rest, seq)
+      true -> add_backlink(map, full)
+      false -> add_backlink(Map.put(map, :lipmaalink, yamfh), rest)
     end
   end
 
-  defp add_backlink(map, <<yamfh::binary-size(66), rest::binary>>, _seq) do
+  defp add_backlink(map, <<yamfh::binary-size(66), rest::binary>>) do
     add_size(Map.put(map, :backlink, yamfh), rest)
   end
 
