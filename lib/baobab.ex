@@ -133,9 +133,13 @@ defmodule Baobab do
     do: log_dir(author, Integer.to_string(log_id))
 
   def log_dir(author, log_id) do
-    Path.join([Application.fetch_env!(:baobab, :spool_dir), "content", author, log_id])
+    Path.join([proper_config_path(), "content", author, log_id])
   end
 
   defp id_dir(identity),
-    do: Path.join([Application.fetch_env!(:baobab, :spool_dir), "identity", identity])
+    do: Path.join([proper_config_path(), "identity", identity])
+
+  defp proper_config_path do
+    Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
+  end
 end
