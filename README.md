@@ -1,21 +1,13 @@
 # Baobab
 
-**TODO: Add description**
+A pure Elixir implementation of [Bamboo](https://github.com/AljoschaMeyer/bamboo) append-only log.
 
-## Installation
+It stores entries and identities in a filesystem spool.
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `baobab` to your list of dependencies in `mix.exs`:
+## Configuration
 
-```elixir
-def deps do
-  [
-    {:baobab, "~> 0.1.0"}
-  ]
-end
+The filesystem peristence is configured with
+
 ```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/baobab>.
-
+  config :baobab, spool_dir: "/tmp"
+```
