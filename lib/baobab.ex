@@ -28,7 +28,12 @@ defmodule Baobab do
   Note that the persisted structure is considered verified.  It is not revalidated
   upon retrieval.
   """
-  def latest_log(author, log_id \\ 0), do: log_at({author, log_id, max_seqnum(author, log_id)})
+  def latest_log(author, log_id \\ 0)
+
+  def latest_log(author, log_id) when byte_size(author) != 32,
+    do: latest_log(identity_key(author, :public), log_id)
+
+  def latest_log(author, log_id), do: log_at({author, log_id, max_seqnum(author, log_id)})
 
   @doc """
   Retrieve the log at a particular `entry_id`.
@@ -51,7 +56,12 @@ defmodule Baobab do
   Note that the persisted structure is considered verified.  It is not revalidated
   upon retrieval.
   """
-  def full_log(author, log_id \\ 0) do
+  def full_log(author, log_id \\ 0)
+
+  def full_log(author, log_id) when byte_size(author) != 32,
+    do: full_log(identity_key(author, :public), log_id)
+
+  def full_log(author, log_id) do
     gather_all_entries(author, log_id, max_seqnum(author, log_id), [])
   end
 
@@ -82,7 +92,12 @@ defmodule Baobab do
   Retrieve the latest sequence number on a particular log identified by the
   author key and log number
   """
-  def max_seqnum(author, log_id \\ 0) do
+  def max_seqnum(author, log_id \\ 0)
+
+  def max_seqnum(author, log_id) when byte_size(author) != 32,
+    do: max_seqnum(identity_key(author, :public), log_id)
+
+  def max_seqnum(author, log_id) do
     a = BaseX.Base62.encode(author)
 
     [log_dir(a, log_id), "**", "{entry_*}"]
@@ -98,7 +113,12 @@ defmodule Baobab do
   Retrieve the latest entry on a particular log identified by the
   author key and log number
   """
-  def max_entry(author, log_id \\ 0) do
+  def max_entry(author, log_id \\ 0)
+
+  def max_entry(author, log_id) when byte_size(author) != 32,
+    do: max_entry(identity_key(author, :public), log_id)
+
+  def max_entry(author, log_id) do
     Baobab.Entry.by_id({author, log_id, max_seqnum(author, log_id)})
   end
 
