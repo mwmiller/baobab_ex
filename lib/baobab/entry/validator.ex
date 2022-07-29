@@ -81,7 +81,7 @@ defmodule Baobab.Entry.Validator do
   Validate the `lipmaalink` field of a `Baobab.Entry`
   """
   @spec valid_lipmaalink?(%Baobab.Entry{}) :: boolean
-  def valid_lipmaalink?(%Baobab.Entry{seqnum: 1}), do: true
+  def valid_lipmaalink?(%Baobab.Entry{seqnum: 1, lipmaalink: nil}), do: true
 
   def valid_lipmaalink?(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, lipmaalink: ll}) do
     case {seq - 1, Lipmaa.linkseq(seq), ll} do
@@ -95,7 +95,7 @@ defmodule Baobab.Entry.Validator do
   Validate the `backlink` field of a `Baobab.Entry`
   """
   @spec valid_backlink?(%Baobab.Entry{}) :: boolean
-  def valid_backlink?(%Baobab.Entry{seqnum: 1}), do: true
+  def valid_backlink?(%Baobab.Entry{seqnum: 1, backlink: nil}), do: true
   def valid_backlink?(%Baobab.Entry{backlink: nil}), do: false
 
   def valid_backlink?(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, backlink: bl}) do
