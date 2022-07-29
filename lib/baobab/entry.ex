@@ -87,6 +87,7 @@ defmodule Baobab.Entry do
         Varu64.encode(seq) <> option(ll) <> option(bl) <> Varu64.encode(size) <> ph <> sig
 
     :ok = handle_seq_file({author, log_id, seq}, "entry", :write, contents)
+
     by_id({author, log_id, seq})
   end
 
@@ -106,9 +107,15 @@ defmodule Baobab.Entry do
   Validated by default, pass `false` for unvalidated retrieval.
   """
   def by_id(entry_id, validate \\ true) do
-    entry_id
-    |> file(:content)
-    |> from_binary(validate)
+    case entry_id |> file(:content) |> from_binary(validate) do
+      :error ->
+        handle_seq_file(entry_id, "payload", :delete)
+        handle_seq_file(entry_id, "entry", :delete)
+        :error
+
+      entry ->
+        entry
+    end
   end
 
   defp from_binary(bin, false), do: from_binary(bin)
@@ -116,12 +123,7 @@ defmodule Baobab.Entry do
   defp from_binary(_, _), do: :error
 
   defp from_binary(<<tag::binary-size(1), author::binary-size(32), rest::binary>>) do
-    # This needs better diagnostics eventually
-    try do
-      add_logid(%Baobab.Entry{tag: tag, author: author}, rest)
-    rescue
-      _ -> :error
-    end
+    add_logid(%Baobab.Entry{tag: tag, author: author}, rest)
   end
 
   defp from_binary(_), do: :error
@@ -206,6 +208,9 @@ defmodule Baobab.Entry do
           {:ok, c} -> YAMFhash.create(c, 0)
           _ -> :error
         end
+
+      :delete ->
+        File.rm(n)
 
       :write ->
         File.mkdir_p(p)
