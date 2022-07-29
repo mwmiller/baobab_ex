@@ -62,6 +62,45 @@ defmodule Baobab.Entry do
   end
 
   @doc """
+  Store a provided `Baobab.Entry` struct in the spool
+  """
+  def store(entry)
+
+  def store(%Baobab.Entry{
+        tag: tag,
+        author: author,
+        log_id: log_id,
+        seqnum: seq,
+        lipmaalink: ll,
+        backlink: bl,
+        payload: payload,
+        payload_hash: ph,
+        sig: sig,
+        size: size
+      }) do
+    :ok = handle_seq_file({author, log_id, seq}, "payload", :write, payload)
+
+    contents =
+      tag <>
+        author <>
+        Varu64.encode(log_id) <>
+        Varu64.encode(seq) <> option(ll) <> option(bl) <> Varu64.encode(size) <> ph <> sig
+
+    :ok = handle_seq_file({author, log_id, seq}, "entry", :write, contents)
+    by_id({author, log_id, seq})
+  end
+
+  @doc """
+  Import an entry from its binary format.
+  """
+  def import(binary) do
+    binary |> from_binary(false) |> store
+  end
+
+  defp option(val) when is_nil(val), do: <<>>
+  defp option(val), do: val
+
+  @doc """
   Retrieve an entry by its id.
 
   Validated by default, pass `false` for unvalidated retrieval.
@@ -124,12 +163,18 @@ defmodule Baobab.Entry do
     add_sig(Map.put(map, :payload_hash, yamfh), rest)
   end
 
-  defp add_sig(map, <<sig::binary-size(64), _::binary>>) do
-    add_payload(Map.put(map, :sig, sig))
+  defp add_sig(map, <<sig::binary-size(64), rest::binary>>) do
+    add_payload(Map.put(map, :sig, sig), rest)
   end
 
-  defp add_payload(%Baobab.Entry{author: author, log_id: log_id, seqnum: seqnum} = map) do
+  # If we onnly got the `entry` portion, assume we might have it on disk
+  # THe `:error` in the struct can act at a signal that we don't
+  defp add_payload(%Baobab.Entry{author: author, log_id: log_id, seqnum: seqnum} = map, "") do
     Map.put(map, :payload, payload_file({author, log_id, seqnum}, :content))
+  end
+
+  defp add_payload(map, payload) do
+    Map.put(map, :payload, payload)
   end
 
   @spec file(entry_id, atom) :: binary | :error
