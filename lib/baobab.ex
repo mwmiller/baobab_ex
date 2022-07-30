@@ -170,13 +170,27 @@ defmodule Baobab do
     do: log_dir(author, Integer.to_string(log_id))
 
   def log_dir(author, log_id) do
-    Path.join([proper_config_path(), "content", author, log_id])
+    Path.join([proper_config_path(), "content", author, log_id]) |> ensure_exists
   end
 
   defp id_dir(identity),
-    do: Path.join([proper_config_path(), "identity", identity])
+    do: Path.join([proper_config_path(), "identity", identity]) |> ensure_exists
 
   defp proper_config_path do
-    Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
+    Application.fetch_env!(:baobab, :spool_dir) |> Path.expand() |> ensure_exists
+  end
+
+  defp ensure_exists(path) do
+    case File.stat(path) do
+      {:ok, _info} ->
+        path
+
+      {:error, :enoent} ->
+        File.mkdir_p(path)
+        ensure_exists(path)
+
+      {:error, error} ->
+        raise "Unrecoverable error with " <> path <> ":" <> Atom.to_string(error)
+    end
   end
 end
