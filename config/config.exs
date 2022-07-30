@@ -1,4 +1,3 @@
 import Config
 
-config :baobab,
-  spool_dir: "~/.baobab"
+import_config "#{Mix.env()}.exs"
