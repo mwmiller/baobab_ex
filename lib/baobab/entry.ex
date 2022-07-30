@@ -88,7 +88,7 @@ defmodule Baobab.Entry do
       handle_seq_file(entry_id, "payload", :content)
   end
 
-  # This handle the other three cases:
+  # This handles the other three cases:
   # :entry validated or unvalidated
   # :binary validated
   def retrieve(author, seq, {fmt, log_id, validate}) do
@@ -160,8 +160,8 @@ defmodule Baobab.Entry do
     add_payload(Map.put(map, :sig, sig), rest)
   end
 
-  # If we onnly got the `entry` portion, assume we might have it on disk
-  # THe `:error` in the struct can act at a signal that we don't
+  # If we only got the `entry` portion, assume we might have it on disk
+  # The `:error` in the struct can act at a signal that we don't
   defp add_payload(%Baobab.Entry{author: author, log_id: log_id, seqnum: seqnum} = map, "") do
     Map.put(map, :payload, payload_file({author, log_id, seqnum}, :content))
   end
