@@ -32,6 +32,21 @@ defmodule Baobab do
   end
 
   @doc """
+  Create and store a new log entry for a stored identity
+  """
+  def append_log(payload, identity, options \\ []) do
+    {_, log_id, _} = parse_options(options)
+    Baobab.Entry.create(payload, identity, log_id)
+  end
+
+  @doc """
+  Import and store a log entry from its binary format.
+  """
+  def import(binary) do
+    binary |> Baobab.Entry.from_binary(false) |> Baobab.Entry.store()
+  end
+
+  @doc """
   Retrieve the latest entry.
 
   Includes the available certificate pool for its verification.
@@ -54,14 +69,11 @@ defmodule Baobab do
 
     certificate_pool(author, seq, opts)
     |> Enum.reverse()
-    |> Enum.map(fn n -> Baobab.Entry.retrieve(author, seq, opts) end)
+    |> Enum.map(fn n -> Baobab.Entry.retrieve(author, n, opts) end)
   end
 
   @doc """
   Retrieve all available entries in a particular log
-
-  Note that the persisted structure is considered verified.  It is not revalidated
-  upon retrieval.
   """
   def full_log(author, options \\ [])
 

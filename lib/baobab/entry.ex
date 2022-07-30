@@ -2,13 +2,6 @@ defmodule Baobab.Entry do
   @moduledoc """
   A struct representing a Baobab entry
   """
-  @typedoc """
-  A tuple referring to a specific log entry
-
-  {author, log_id, seqnum}
-  """
-  @type entry_id :: {binary, non_neg_integer, pos_integer}
-
   defstruct tag: <<0>>,
             author:
               <<0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -28,15 +21,11 @@ defmodule Baobab.Entry do
                 0, 0, 0, 0, 0, 0, 0, 0>>,
             payload: ""
 
-  @doc """
-  Create a new entry from a stored identity
-
-  Does not yet support writing an end of log tag
-  """
-  def create(payload, identity, log_id \\ 0) do
+  @doc false
+  def create(payload, identity, log_id) do
     author = Baobab.identity_key(identity, :public)
     signer = Baobab.identity_key(identity, :secret)
-    prev = Baobab.max_seqnum(author, log_id)
+    prev = Baobab.max_seqnum(author, log_id: log_id)
     seq = prev + 1
     :ok = handle_seq_file({author, log_id, seq}, "payload", :write, payload)
     head = <<0>> <> author <> Varu64.encode(log_id) <> Varu64.encode(seq)
@@ -61,11 +50,7 @@ defmodule Baobab.Entry do
     retrieve(author, seq, {:entry, log_id, true})
   end
 
-  @doc """
-  Store a provided `Baobab.Entry` struct in the spool
-  """
-  def store(entry)
-
+  @doc false
   def store(%Baobab.Entry{
         tag: tag,
         author: author,
@@ -89,13 +74,6 @@ defmodule Baobab.Entry do
     :ok = handle_seq_file({author, log_id, seq}, "entry", :write, contents)
 
     retrieve(author, seq, {:entry, 0, true})
-  end
-
-  @doc """
-  Import an entry from its binary format.
-  """
-  def import(binary) do
-    binary |> from_binary(false) |> store
   end
 
   defp option(val) when is_nil(val), do: <<>>
@@ -130,9 +108,10 @@ defmodule Baobab.Entry do
     end
   end
 
-  defp from_binary(bin, false), do: from_binary(bin)
-  defp from_binary(bin, true), do: bin |> from_binary |> Baobab.Entry.Validator.validate()
-  defp from_binary(_, _), do: :error
+  @doc false
+  def from_binary(bin, false), do: from_binary(bin)
+  def from_binary(bin, true), do: bin |> from_binary |> Baobab.Entry.Validator.validate()
+  def from_binary(_, _), do: :error
 
   defp from_binary(<<tag::binary-size(1), author::binary-size(32), rest::binary>>) do
     add_logid(%Baobab.Entry{tag: tag, author: author}, rest)
@@ -191,12 +170,10 @@ defmodule Baobab.Entry do
     Map.put(map, :payload, payload)
   end
 
-  @spec file(entry_id, atom) :: binary | :error
   @doc false
   def file(entry_id, which),
     do: handle_seq_file(entry_id, "entry", which)
 
-  @spec payload_file(entry_id, atom) :: binary | :error
   defp payload_file(entry_id, which),
     do: handle_seq_file(entry_id, "payload", which)
 
