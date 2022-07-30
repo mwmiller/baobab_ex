@@ -58,7 +58,7 @@ defmodule Baobab.Entry do
     meat = head <> ll <> bl <> tail
     sig = Ed25519.signature(meat, signer, author)
     :ok = handle_seq_file({author, log_id, seq}, "entry", :write, meat <> sig)
-    by_id({author, log_id, seq})
+    retrieve(author, seq, {:entry, log_id, true})
   end
 
   @doc """
@@ -88,7 +88,7 @@ defmodule Baobab.Entry do
 
     :ok = handle_seq_file({author, log_id, seq}, "entry", :write, contents)
 
-    by_id({author, log_id, seq})
+    retrieve(author, seq, {:entry, 0, true})
   end
 
   @doc """
@@ -101,20 +101,32 @@ defmodule Baobab.Entry do
   defp option(val) when is_nil(val), do: <<>>
   defp option(val), do: val
 
-  @doc """
-  Retrieve an entry by its id.
+  @doc false
+  # Handle the simplest case first
+  def retrieve(author, seq, {:binary, log_id, false}) do
+    entry_id = {author, log_id, seq}
 
-  Validated by default, pass `false` for unvalidated retrieval.
-  """
-  def by_id(entry_id, validate \\ true) do
-    case entry_id |> file(:content) |> from_binary(validate) do
-      :error ->
+    handle_seq_file(entry_id, "entry", :content) <>
+      handle_seq_file(entry_id, "payload", :content)
+  end
+
+  # This handle the other three cases:
+  # :entry validated or unvalidated
+  # :binary validated
+  def retrieve(author, seq, {fmt, log_id, validate}) do
+    entry_id = {author, log_id, seq}
+
+    case {entry_id |> file(:content) |> from_binary(validate), fmt} do
+      {:error, _} ->
         handle_seq_file(entry_id, "payload", :delete)
         handle_seq_file(entry_id, "entry", :delete)
         :error
 
-      entry ->
+      {entry, :entry} ->
         entry
+
+      {_, :binary} ->
+        retrieve(author, seq, {:binary, log_id, false})
     end
   end
 
