@@ -51,13 +51,9 @@ defmodule Baobab do
 
   Includes the available certificate pool for its verification.
   """
-  def latest_log(author, options \\ [])
-
-  def latest_log(author, options) when byte_size(author) != 32,
-    do: latest_log(identity_key(author, :public), options)
-
-  def latest_log(author, options),
-    do: log_at(author, max_seqnum(author, options), options)
+  def latest_log(author, options \\ []) do
+    author |> author_key |> log_at(max_seqnum(author, options), options)
+  end
 
   @doc """
   Retrieve an author log at a particular sequence number.
@@ -75,14 +71,9 @@ defmodule Baobab do
   @doc """
   Retrieve all available entries in a particular log
   """
-  def full_log(author, options \\ [])
-
-  def full_log(author, options) when byte_size(author) != 32,
-    do: full_log(identity_key(author, :public), options)
-
-  def full_log(author, options) do
+  def full_log(author, options \\ []) do
     opts = parse_options(options)
-    gather_all_entries(author, opts, max_seqnum(author, options), [])
+    author |> author_key |> gather_all_entries(opts, max_seqnum(author, options), [])
   end
 
   defp gather_all_entries(_, _, 0, acc), do: acc
@@ -107,13 +98,13 @@ defmodule Baobab do
   Retrieve the latest sequence number on a particular log identified by the
   author key and log number
   """
-  def max_seqnum(author, options \\ [])
+  def max_seqnum(author, options \\ []) do
+    a =
+      case byte_size(author) == 43 do
+        true -> author
+        false -> author |> author_key |> BaseX.Base62.encode()
+      end
 
-  def max_seqnum(author, options) when byte_size(author) != 32,
-    do: max_seqnum(identity_key(author, :public), options)
-
-  def max_seqnum(author, options) do
-    a = BaseX.Base62.encode(author)
     {_, log_id, _} = parse_options(options)
 
     [log_dir(a, log_id), "**", "{entry_*}"]
@@ -131,12 +122,9 @@ defmodule Baobab do
   """
   def max_entry(author, options \\ [])
 
-  def max_entry(author, options) when byte_size(author) != 32,
-    do: max_entry(identity_key(author, :public), options)
-
   def max_entry(author, options) do
     opts = parse_options(options)
-    Baobab.Entry.retrieve(author, max_seqnum(author, options), opts)
+    author |> author_key |> Baobab.Entry.retrieve(max_seqnum(author, options), opts)
   end
 
   @doc """
@@ -162,9 +150,10 @@ defmodule Baobab do
   Can be either the `:public` or `:secret` key
   """
   def identity_key(identity, which) do
-    {:ok, key} = Path.join([id_dir(identity), Atom.to_string(which)]) |> File.read()
-
-    key
+    case Path.join([id_dir(identity), Atom.to_string(which)]) |> File.read() do
+      {:ok, key} -> key
+      _ -> :error
+    end
   end
 
   @doc false
@@ -193,6 +182,18 @@ defmodule Baobab do
 
       {:error, error} ->
         raise "Unrecoverable error with " <> path <> ":" <> Atom.to_string(error)
+    end
+  end
+
+  # Looks like a proper key
+  defp author_key(author) when byte_size(author) == 32, do: author
+  # Looks like a base62-encoded key
+  defp author_key(author) when byte_size(author) == 43, do: BaseX.Base62.decode(author)
+  # I guess it's a stored identity?
+  defp author_key(author) do
+    case identity_key(author, :public) do
+      :error -> raise "Cannot resolve author: " <> author
+      key -> key
     end
   end
 end
