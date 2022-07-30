@@ -149,7 +149,9 @@ defmodule Baobab do
     where = id_dir(identity)
     File.mkdir_p(where)
     File.write!(Path.join([where, "secret"]), secret)
+    File.chmod!(Path.join([where, "secret"]), 0o600)
     File.write!(Path.join([where, "public"]), public)
+    File.chmod!(Path.join([where, "secret"]), 0o644)
 
     BaseX.Base62.encode(public)
   end
