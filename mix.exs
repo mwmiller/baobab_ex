@@ -6,19 +6,22 @@ defmodule Baobab.MixProject do
       app: :baobab,
       version: "0.1.0",
       elixir: "~> 1.13",
+      name: "Baobab",
+      source_url: "https://github.com/mwmiller/baobab_ex",
+      build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
+      description: description(),
+      package: package(),
       deps: deps()
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger]
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
@@ -27,6 +30,24 @@ defmodule Baobab.MixProject do
       {:lipmaa, ">= 1.1.0"},
       {:varu64, "~> 0.2.0"},
       {:yamfhash, ">= 0.0.0"}
+    ]
+  end
+
+  defp description do
+    """
+    Baobab - Bamboo append-only logs in pure Elixir
+    """
+  end
+
+  defp package do
+    [
+      files: ["lib", "mix.exs", "README*", "LICENSE*"],
+      maintainers: ["Matt Miller"],
+      licenses: ["MIT"],
+      links: %{
+        "GitHub" => "https://github.com/mwmiller/baobab_ex",
+        "Spec" => "https://github.com/AljoschaMeyer/bamboo"
+      }
     ]
   end
 end
