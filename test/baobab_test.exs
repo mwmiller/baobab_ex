@@ -11,7 +11,7 @@ defmodule BaobabTest do
   test "import remote entry" do
     remote_entry = File.read!("test/remote_entry")
 
-    local_entry = Baobab.import(remote_entry)
+    [local_entry | _] = Baobab.import([remote_entry])
 
     assert %Baobab.Entry{seqnum: 1, log_id: 0, size: 33, tag: <<0>>} = local_entry
     author = local_entry.author
@@ -48,9 +48,7 @@ defmodule BaobabTest do
     full = Baobab.full_log(author_key, log_id: 0)
     assert Enum.count(full) == 14
 
-    [bin_root | _] = partial
-
-    assert root == Baobab.import(bin_root)
+    assert [^root | _] = Baobab.import(partial)
     assert [^root | _] = latest
     assert [^root | _] = full
 

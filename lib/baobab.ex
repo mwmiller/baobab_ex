@@ -40,10 +40,16 @@ defmodule Baobab do
   end
 
   @doc """
-  Import and store a log entry from its binary format.
+  Import and store a list of log entries from their binary format.
   """
-  def import(binary) do
-    binary |> Baobab.Entry.from_binary(false) |> Baobab.Entry.store()
+  @spec import([binary]) :: [%Baobab.Entry{} | :error]
+  def import(binaries) when is_list(binaries), do: do_import(binaries, [])
+  def import(_), do: :error
+  defp do_import([], acc), do: Enum.reverse(acc)
+
+  defp do_import([binary | rest], acc) do
+    entry = binary |> Baobab.Entry.from_binary(false) |> Baobab.Entry.store()
+    do_import(rest, [entry | acc])
   end
 
   @doc """
