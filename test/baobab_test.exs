@@ -55,4 +55,17 @@ defmodule BaobabTest do
     assert Baobab.max_seqnum("testy", log_id: 0) == 14
     assert Baobab.max_seqnum("testy", log_id: 1) == 1
   end
+
+  test "errors or not" do
+    assert :error = Baobab.identity_key("newb", :secret)
+    assert :error = Baobab.identity_key("newb", :public)
+
+    assert :error = Baobab.import("")
+    assert [:error] = Baobab.import([""])
+
+    assert_raise RuntimeError, fn -> Baobab.log_at("newb", 5) end
+    assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF", 5)
+    assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF0123456789A", 5)
+    assert_raise RuntimeError, fn -> Baobab.log_at("0123456789ABCDEF0123456789ABCDEF0123", 5) end
+  end
 end

@@ -76,6 +76,8 @@ defmodule Baobab.Entry do
     retrieve(author, seq, {:entry, 0, true})
   end
 
+  def store(_), do: :error
+
   defp option(val) when is_nil(val), do: <<>>
   defp option(val), do: val
 
