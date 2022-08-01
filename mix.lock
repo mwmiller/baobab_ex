@@ -11,6 +11,6 @@
   "makeup_erlang": {:hex, :makeup_erlang, "0.1.1", "3fcb7f09eb9d98dc4d208f49cc955a34218fc41ff6b84df7c75b3e6e533cc65f", [:mix], [{:makeup, "~> 1.0", [hex: :makeup, repo: "hexpm", optional: false]}], "hexpm", "174d0809e98a4ef0b3309256cbf97101c6ec01c4ab0b23e926a9e17df2077cbb"},
   "nimble_parsec": {:hex, :nimble_parsec, "1.2.3", "244836e6e3f1200c7f30cb56733fd808744eca61fd182f731eac4af635cc6d0b", [:mix], [], "hexpm", "c8d789e39b9131acf7b99291e93dae60ab48ef14a7ee9d58c6964f59efb570b0"},
   "stlv": {:hex, :stlv, "1.0.0", "9cbed432fe35b0c2ca760a0f261bc2565fe68aab362d0ff1095c4d3fb277653e", [:mix], [{:varu64, ">= 0.0.0", [hex: :varu64, repo: "hexpm", optional: false]}], "hexpm", "01e5448bbb88180d71345727019d1400b0a27ca8110907051b2f63b2ac436bea"},
-  "varu64": {:hex, :varu64, "0.2.0", "9fb349e2d11e6028328e51af201523718902198dd8b57e859d587cc8d3838bf1", [:mix], [], "hexpm", "1b5e046734f4c692498d1805f75023b6f744e5a6077d485e7c4c53ad89fc2781"},
+  "varu64": {:hex, :varu64, "1.0.0", "f62473ff8c98aa6460a9a7807c5e6d93d586ca7e2bf39608e11a6da6dbebf376", [:mix], [], "hexpm", "1bcb03d18c1f085562cd51defb220fda19754a35e2def026895f5fa9f256ad80"},
   "yamfhash": {:hex, :yamfhash, "1.0.0", "f1ac7146cb4373c2955ecc092c6fd6cd65cd23fc8df792f8c3776abc2ba70414", [:mix], [{:blake2, ">= 1.0.0", [hex: :blake2, repo: "hexpm", optional: false]}, {:equivalex, "~> 1.0", [hex: :equivalex, repo: "hexpm", optional: false]}, {:stlv, ">= 0.0.0", [hex: :stlv, repo: "hexpm", optional: false]}], "hexpm", "d01bb69acb83cabf7836ee24a0bfb2ea183431cd4619409796e01c4910939220"},
 }

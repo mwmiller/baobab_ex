@@ -27,3 +27,6 @@ baobab-*.tar
 
 # Finder nonsense
 .DS_Store
+
+# Vim swap files
+*.sw?
