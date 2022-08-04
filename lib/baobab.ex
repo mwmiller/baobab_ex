@@ -113,7 +113,7 @@ defmodule Baobab do
 
     {_, log_id, _} = parse_options(options)
 
-    [log_dir(a, log_id), "**", "{entry_*}"]
+    [log_dir(a, log_id, false), "**", "{entry_*}"]
     |> Path.join()
     |> Path.wildcard()
     |> Enum.map(fn n -> Path.basename(n) end)
@@ -190,11 +190,15 @@ defmodule Baobab do
   end
 
   @doc false
-  def log_dir(author, log_id) when is_integer(log_id),
-    do: log_dir(author, Integer.to_string(log_id))
+  def log_dir(author, log_id, ensure) when is_integer(log_id),
+    do: log_dir(author, Integer.to_string(log_id), ensure)
 
-  def log_dir(author, log_id) do
+  def log_dir(author, log_id, false) do
     Path.join([content_dir(), author, log_id]) |> ensure_exists
+  end
+
+  def log_dir(author, log_id, true) do
+    log_dir(author, log_id, false) |> ensure_exists
   end
 
   defp id_dir(identity),

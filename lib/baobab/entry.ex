@@ -213,7 +213,7 @@ defmodule Baobab.Entry do
     do: content_dir({author, Integer.to_string(log_id), seq})
 
   defp content_dir({author, log_id, seq}) do
-    Path.join([Baobab.log_dir(author, log_id), pp(seq, 13), pp(seq, 11)])
+    Path.join([Baobab.log_dir(author, log_id, true), pp(seq, 13), pp(seq, 11)])
   end
 
   defp pp(n, m), do: n |> rem(m) |> Integer.to_string()
