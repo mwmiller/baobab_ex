@@ -42,7 +42,7 @@ defmodule BaobabTest do
     end
 
     author_key = Baobab.identity_key("testy", :public)
-    partial = Baobab.log_at(author_key, 5, format: :binary)
+    partial = Baobab.log_at(b62author, 5, format: :binary)
     assert Enum.count(partial) == 8
     latest = Baobab.latest_log(author_key, revalidate: true)
     assert Enum.count(latest) == 4

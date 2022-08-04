@@ -67,11 +67,12 @@ defmodule Baobab do
   Includes the available certificate pool for its verification.
   """
   def log_at(author, seq, options \\ []) do
+    ak = author |> author_key
     opts = parse_options(options)
 
-    certificate_pool(author, seq, opts)
+    certificate_pool(ak, seq, opts)
     |> Enum.reverse()
-    |> Enum.map(fn n -> Baobab.Entry.retrieve(author, n, opts) end)
+    |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
   end
 
   @doc """
@@ -105,15 +106,11 @@ defmodule Baobab do
   author key and log number
   """
   def max_seqnum(author, options \\ []) do
-    a =
-      case byte_size(author) == 43 do
-        true -> author
-        false -> author |> author_key |> BaseX.Base62.encode()
-      end
+    a = author |> author_key |> BaseX.Base62.encode()
 
     {_, log_id, _} = parse_options(options)
 
-    [log_dir(a, log_id, false), "**", "{entry_*}"]
+    [log_dir(a, log_id), "**", "{entry_*}"]
     |> Path.join()
     |> Path.wildcard()
     |> Enum.map(fn n -> Path.basename(n) end)
@@ -190,15 +187,11 @@ defmodule Baobab do
   end
 
   @doc false
-  def log_dir(author, log_id, ensure) when is_integer(log_id),
-    do: log_dir(author, Integer.to_string(log_id), ensure)
+  def log_dir(author, log_id) when is_integer(log_id),
+    do: log_dir(author, Integer.to_string(log_id))
 
-  def log_dir(author, log_id, false) do
+  def log_dir(author, log_id) do
     Path.join([content_dir(), author, log_id]) |> ensure_exists
-  end
-
-  def log_dir(author, log_id, true) do
-    log_dir(author, log_id, false) |> ensure_exists
   end
 
   defp id_dir(identity),

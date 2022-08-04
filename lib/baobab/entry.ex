@@ -86,8 +86,12 @@ defmodule Baobab.Entry do
   def retrieve(author, seq, {:binary, log_id, false}) do
     entry_id = {author, log_id, seq}
 
-    handle_seq_file(entry_id, "entry", :content) <>
-      handle_seq_file(entry_id, "payload", :content)
+    case {handle_seq_file(entry_id, "entry", :content),
+          handle_seq_file(entry_id, "payload", :content)} do
+      {:error, _} -> :error
+      {_, :error} -> :error
+      {entry, payload} -> entry <> payload
+    end
   end
 
   # This handles the other three cases:
@@ -213,7 +217,7 @@ defmodule Baobab.Entry do
     do: content_dir({author, Integer.to_string(log_id), seq})
 
   defp content_dir({author, log_id, seq}) do
-    Path.join([Baobab.log_dir(author, log_id, true), pp(seq, 13), pp(seq, 11)])
+    Path.join([Baobab.log_dir(author, log_id), pp(seq, 13), pp(seq, 11)])
   end
 
   defp pp(n, m), do: n |> rem(m) |> Integer.to_string()
