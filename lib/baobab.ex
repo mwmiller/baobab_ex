@@ -151,6 +151,33 @@ defmodule Baobab do
   end
 
   @doc """
+  A list of {author, log_id, max_seqnum} tuples in the configured store
+  """
+  # This is all crazy inefficient, but I will clean it up at some
+  # point in the future if I care enough.
+  def stored_info(), do: stored_info(logs(), [])
+
+  defp stored_info([], acc), do: Enum.reverse(acc)
+
+  defp stored_info([{a, l} | rest], acc) do
+    a =
+      case max_seqnum(a, log_id: l) do
+        0 -> acc
+        n -> [{a, String.to_integer(l), n} | acc]
+      end
+
+    stored_info(rest, a)
+  end
+
+  defp logs do
+    cd = content_dir()
+
+    Path.join([cd, "*", "*"])
+    |> Path.wildcard()
+    |> Enum.map(fn d -> Path.relative_to(d, cd) |> Path.split() |> List.to_tuple() end)
+  end
+
+  @doc """
   Retrieve the key for a stored identity.
 
   Can be either the `:public` or `:secret` key
@@ -167,11 +194,15 @@ defmodule Baobab do
     do: log_dir(author, Integer.to_string(log_id))
 
   def log_dir(author, log_id) do
-    Path.join([proper_config_path(), "content", author, log_id]) |> ensure_exists
+    Path.join([content_dir(), author, log_id]) |> ensure_exists
   end
 
   defp id_dir(identity),
     do: Path.join([proper_config_path(), "identity", identity]) |> ensure_exists
+
+  defp content_dir() do
+    Path.join([proper_config_path(), "content"])
+  end
 
   defp proper_config_path do
     Application.fetch_env!(:baobab, :spool_dir) |> Path.expand() |> ensure_exists

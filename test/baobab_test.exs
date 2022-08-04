@@ -18,6 +18,7 @@ defmodule BaobabTest do
 
     assert local_entry == Baobab.max_entry(author)
     assert remote_entry == Baobab.max_entry(author, format: :binary)
+    assert [{"7nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG", 0, 1}] = Baobab.stored_info()
   end
 
   test "local use" do
@@ -54,6 +55,8 @@ defmodule BaobabTest do
 
     assert Baobab.max_seqnum("testy", log_id: 0) == 14
     assert Baobab.max_seqnum("testy", log_id: 1) == 1
+
+    assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()
   end
 
   test "errors or not" do
