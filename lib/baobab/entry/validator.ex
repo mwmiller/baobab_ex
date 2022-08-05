@@ -89,9 +89,17 @@ defmodule Baobab.Entry.Validator do
 
   def valid_lipmaalink?(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, lipmaalink: ll}) do
     case {seq - 1, Lipmaa.linkseq(seq), ll} do
-      {n, n, nil} -> true
-      {n, n, _} -> false
-      {_, n, ll} -> YAMFhash.verify(ll, Baobab.Entry.file({author, log_id, n}, :content)) == ""
+      {n, n, nil} ->
+        true
+
+      {n, n, _} ->
+        false
+
+      {_, n, ll} ->
+        case Baobab.Entry.file({author, log_id, n}, :content) do
+          :error -> false
+          fll -> YAMFhash.verify(ll, fll) == ""
+        end
     end
   end
 
@@ -103,6 +111,12 @@ defmodule Baobab.Entry.Validator do
   def valid_backlink?(%Baobab.Entry{backlink: nil}), do: false
 
   def valid_backlink?(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, backlink: bl}) do
-    YAMFhash.verify(bl, Baobab.Entry.file({author, log_id, seq - 1}, :content)) == ""
+    case Baobab.Entry.file({author, log_id, seq - 1}, :content) do
+      # We don't have it so we cannot check it.  We'll say it's OK
+      # This is required for partial replication to be meaningful.
+      # I am sure I will come to regret this post-haste
+      :error -> true
+      back_entry -> YAMFhash.verify(bl, back_entry) == ""
+    end
   end
 end
