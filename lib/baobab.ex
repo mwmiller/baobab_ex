@@ -58,7 +58,7 @@ defmodule Baobab do
   Includes the available certificate pool for its verification.
   """
   def latest_log(author, options \\ []) do
-    author |> author_key |> log_at(max_seqnum(author, options), options)
+    author |> b62identity |> log_at(max_seqnum(author, options), options)
   end
 
   @doc """
@@ -67,7 +67,7 @@ defmodule Baobab do
   Includes the available certificate pool for its verification.
   """
   def log_at(author, seq, options \\ []) do
-    ak = author |> author_key
+    ak = author |> b62identity
     opts = parse_options(options)
 
     certificate_pool(ak, seq, opts)
@@ -80,7 +80,7 @@ defmodule Baobab do
   """
   def full_log(author, options \\ []) do
     opts = parse_options(options)
-    author |> author_key |> gather_all_entries(opts, max_seqnum(author, options), [])
+    author |> b62identity |> gather_all_entries(opts, max_seqnum(author, options), [])
   end
 
   defp gather_all_entries(_, _, 0, acc), do: acc
@@ -106,7 +106,7 @@ defmodule Baobab do
   author key and log number
   """
   def max_seqnum(author, options \\ []) do
-    a = author |> author_key |> BaseX.Base62.encode()
+    a = author |> b62identity
 
     {_, log_id, _} = parse_options(options)
 
@@ -127,7 +127,7 @@ defmodule Baobab do
 
   def max_entry(author, options) do
     opts = parse_options(options)
-    author |> author_key |> Baobab.Entry.retrieve(max_seqnum(author, options), opts)
+    author |> b62identity |> Baobab.Entry.retrieve(max_seqnum(author, options), opts)
   end
 
   @doc """
@@ -144,7 +144,7 @@ defmodule Baobab do
     File.write!(Path.join([where, "public"]), public)
     File.chmod!(Path.join([where, "secret"]), 0o644)
 
-    BaseX.Base62.encode(public)
+    public |> b62identity
   end
 
   @doc """
@@ -219,15 +219,18 @@ defmodule Baobab do
     end
   end
 
-  # Looks like a proper key
-  defp author_key(author) when byte_size(author) == 32, do: author
+  @doc """
+  Resolve an identity to its Base62 representation
+  """
   # Looks like a base62-encoded key
-  defp author_key(author) when byte_size(author) == 43, do: BaseX.Base62.decode(author)
+  def b62identity(author) when byte_size(author) == 43, do: author
+  # Looks like a proper key
+  def b62identity(author) when byte_size(author) == 32, do: BaseX.Base62.encode(author)
   # I guess it's a stored identity?
-  defp author_key(author) do
+  def b62identity(author) do
     case identity_key(author, :public) do
       :error -> raise "Cannot resolve author: " <> author
-      key -> key
+      key -> BaseX.Base62.encode(key)
     end
   end
 end

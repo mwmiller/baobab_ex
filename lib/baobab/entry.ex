@@ -184,7 +184,7 @@ defmodule Baobab.Entry do
     do: handle_seq_file(entry_id, "payload", which)
 
   defp handle_seq_file({author, log_id, seq}, name, how, content \\ nil) do
-    a = BaseX.Base62.encode(author)
+    a = author |> Baobab.b62identity()
     p = content_dir({a, log_id, seq})
     n = Path.join([p, name <> "_" <> Integer.to_string(seq)])
 
