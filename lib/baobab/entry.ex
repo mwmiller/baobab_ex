@@ -47,22 +47,40 @@ defmodule Baobab.Entry do
     meat = head <> ll <> bl <> tail
     sig = Ed25519.signature(meat, signer, author)
     :ok = handle_seq_file({author, log_id, seq}, "entry", :write, meat <> sig)
-    retrieve(author, seq, {:entry, log_id, true})
+    retrieve(author, seq, {:entry, log_id, true, false})
   end
 
   @doc false
-  def store(%Baobab.Entry{
-        tag: tag,
-        author: author,
-        log_id: log_id,
-        seqnum: seq,
-        lipmaalink: ll,
-        backlink: bl,
-        payload: payload,
-        payload_hash: ph,
-        sig: sig,
-        size: size
-      }) do
+  def store(
+        %Baobab.Entry{
+          author: author,
+          log_id: log_id,
+          seqnum: seq
+        } = entry,
+        false
+      ) do
+    case handle_seq_file({author, log_id, seq}, "payload", :exists) and
+           handle_seq_file({author, log_id, seq}, "entry", :exists) do
+      false -> store(entry, true)
+      true -> entry
+    end
+  end
+
+  def store(
+        %Baobab.Entry{
+          tag: tag,
+          author: author,
+          log_id: log_id,
+          seqnum: seq,
+          lipmaalink: ll,
+          backlink: bl,
+          payload: payload,
+          payload_hash: ph,
+          sig: sig,
+          size: size
+        },
+        true
+      ) do
     :ok = handle_seq_file({author, log_id, seq}, "payload", :write, payload)
 
     contents =
@@ -73,17 +91,17 @@ defmodule Baobab.Entry do
 
     :ok = handle_seq_file({author, log_id, seq}, "entry", :write, contents)
 
-    retrieve(author, seq, {:entry, 0, true})
+    retrieve(author, seq, {:entry, 0, true, true})
   end
 
-  def store(_), do: :error
+  def store(_, _), do: :error
 
   defp option(val) when is_nil(val), do: <<>>
   defp option(val), do: val
 
   @doc false
   # Handle the simplest case first
-  def retrieve(author, seq, {:binary, log_id, false}) do
+  def retrieve(author, seq, {:binary, log_id, false, _}) do
     entry_id = {author, log_id, seq}
 
     case {handle_seq_file(entry_id, "entry", :content),
@@ -97,7 +115,7 @@ defmodule Baobab.Entry do
   # This handles the other three cases:
   # :entry validated or unvalidated
   # :binary validated
-  def retrieve(author, seq, {fmt, log_id, validate}) do
+  def retrieve(author, seq, {fmt, log_id, validate, _}) do
     entry_id = {author, log_id, seq}
 
     case {entry_id |> file(:content) |> from_binary(validate), fmt} do
@@ -110,7 +128,7 @@ defmodule Baobab.Entry do
         entry
 
       {_, :binary} ->
-        retrieve(author, seq, {:binary, log_id, false})
+        retrieve(author, seq, {:binary, log_id, false, true})
     end
   end
 
@@ -210,6 +228,9 @@ defmodule Baobab.Entry do
       :write ->
         File.mkdir_p(p)
         File.write(n, content)
+
+      :exists ->
+        File.exists?(n)
     end
   end
 

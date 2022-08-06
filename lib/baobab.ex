@@ -18,6 +18,7 @@ defmodule Baobab do
   - `format`: `:entry` or `:binary`, default: `:entry`
   - `log_id`: the author's log identifier, default `0`
   - `revalidate`: confirm the store contents are unchanged, default: `false`
+  - `replace`: rewrite log contents even if it exists, default: `false`
   """
 
   BaseX.prepare_module(
@@ -28,14 +29,14 @@ defmodule Baobab do
 
   defp parse_options(opts) do
     {Keyword.get(opts, :format, :entry), Keyword.get(opts, :log_id, 0),
-     Keyword.get(opts, :revalidate, false)}
+     Keyword.get(opts, :revalidate, false), Keyword.get(opts, :replace, false)}
   end
 
   @doc """
   Create and store a new log entry for a stored identity
   """
   def append_log(payload, identity, options \\ []) do
-    {_, log_id, _} = parse_options(options)
+    {_, log_id, _, _} = parse_options(options)
     Baobab.Entry.create(payload, identity, log_id)
   end
 
@@ -43,13 +44,19 @@ defmodule Baobab do
   Import and store a list of log entries from their binary format.
   """
   @spec import([binary]) :: [%Baobab.Entry{} | :error]
-  def import(binaries) when is_list(binaries), do: do_import(binaries, [])
-  def import(_), do: :error
-  defp do_import([], acc), do: Enum.reverse(acc)
+  def import(binaries, opts \\ [])
 
-  defp do_import([binary | rest], acc) do
-    entry = binary |> Baobab.Entry.from_binary(false) |> Baobab.Entry.store()
-    do_import(rest, [entry | acc])
+  def import(binaries, opts) when is_list(binaries) do
+    {_, _, _, overwrite} = parse_options(opts)
+    do_import(binaries, overwrite, [])
+  end
+
+  def import(_, _), do: [:error]
+  defp do_import([], _, acc), do: Enum.reverse(acc)
+
+  defp do_import([binary | rest], overwrite, acc) do
+    entry = binary |> Baobab.Entry.from_binary(false) |> Baobab.Entry.store(overwrite)
+    do_import(rest, overwrite, [entry | acc])
   end
 
   @doc """
@@ -96,7 +103,7 @@ defmodule Baobab do
   end
 
   @doc false
-  def certificate_pool(author, seq, {_, log_id, _}) do
+  def certificate_pool(author, seq, {_, log_id, _, _}) do
     max = max_seqnum(author, log_id: log_id)
     seq |> Lipmaa.cert_pool() |> Enum.reject(fn n -> n > max end)
   end
@@ -108,7 +115,7 @@ defmodule Baobab do
   def max_seqnum(author, options \\ []) do
     a = author |> b62identity
 
-    {_, log_id, _} = parse_options(options)
+    {_, log_id, _, _} = parse_options(options)
 
     [log_dir(a, log_id), "**", "{entry_*}"]
     |> Path.join()

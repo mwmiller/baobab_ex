@@ -63,7 +63,7 @@ defmodule BaobabTest do
     assert :error = Baobab.identity_key("newb", :secret)
     assert :error = Baobab.identity_key("newb", :public)
 
-    assert :error = Baobab.import("")
+    assert [:error] = Baobab.import("")
     assert [:error] = Baobab.import([""])
 
     assert_raise RuntimeError, fn -> Baobab.log_at("newb", 5) end

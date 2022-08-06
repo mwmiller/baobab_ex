@@ -15,7 +15,7 @@ defmodule Baobab.Entry.Validator do
 
       true ->
         case verify_chain(
-               Baobab.certificate_pool(author, seq, {:entry, log_id, true}),
+               Baobab.certificate_pool(author, seq, {:entry, log_id, true, false}),
                {author, log_id},
                true
              ) do
@@ -32,7 +32,7 @@ defmodule Baobab.Entry.Validator do
 
   defp verify_chain([seq | rest], {author, log_id} = which, answer) do
     truth =
-      case Baobab.Entry.retrieve(author, seq, {:entry, log_id, false}) do
+      case Baobab.Entry.retrieve(author, seq, {:entry, log_id, false, false}) do
         :error -> false
         link -> valid_link?(link)
       end
