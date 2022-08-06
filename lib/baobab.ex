@@ -3,7 +3,7 @@ defmodule Baobab do
   Baobab is a pure Elixir implementation of the 
   [Bamboo](https://github.com/AljoschaMeyer/bamboo) append-only log.
 
-  It is fairly opinionated about the filesystem persistence of the logs.
+  It is fairly opinionated about the DETS persistence of the logs.
   They are considered to be a spool of the logs as retreived.
 
   Consumers of this library may wish to place a local copy of the logs in
@@ -147,16 +147,15 @@ defmodule Baobab do
   author key and log number
   """
   def all_seqnum(author, options \\ []) do
-    a = author |> b62identity
+    auth = author |> b62identity
 
     {_, log_id, _, _} = parse_options(options)
 
-    [log_dir(a, log_id), "**", "{entry_*}"]
-    |> Path.join()
-    |> Path.wildcard()
-    |> Enum.map(fn n ->
-      n |> Path.basename() |> String.split("_") |> List.last() |> String.to_integer()
-    end)
+    :content
+    |> db
+    |> Pockets.keys_stream()
+    |> Stream.filter(fn {a, l, _} -> a == auth and l == log_id end)
+    |> Stream.map(fn {_, _, e} -> e end)
     |> Enum.sort()
   end
 
@@ -178,13 +177,7 @@ defmodule Baobab do
   # No overwiting? Error handling?
   def create_identity(identity) do
     {secret, public} = Ed25519.generate_key_pair()
-    where = id_dir(identity)
-    File.mkdir_p(where)
-    File.write!(Path.join([where, "secret"]), secret)
-    File.chmod!(Path.join([where, "secret"]), 0o600)
-    File.write!(Path.join([where, "public"]), public)
-    File.chmod!(Path.join([where, "secret"]), 0o644)
-
+    Pockets.put(db(:identity), identity, {secret, public})
     public |> b62identity
   end
 
@@ -195,24 +188,24 @@ defmodule Baobab do
   # point in the future if I care enough.
   def stored_info(), do: stored_info(logs(), [])
 
-  defp stored_info([], acc), do: Enum.reverse(acc)
+  defp stored_info([], acc), do: acc |> Enum.sort()
 
   defp stored_info([{a, l} | rest], acc) do
     a =
       case max_seqnum(a, log_id: l) do
         0 -> acc
-        n -> [{a, String.to_integer(l), n} | acc]
+        n -> [{a, l, n} | acc]
       end
 
     stored_info(rest, a)
   end
 
   defp logs do
-    cd = content_dir()
-
-    Path.join([cd, "*", "*"])
-    |> Path.wildcard()
-    |> Enum.map(fn d -> Path.relative_to(d, cd) |> Path.split() |> List.to_tuple() end)
+    :content
+    |> db
+    |> Pockets.keys_stream()
+    |> Stream.map(fn {a, l, _} -> {a, l} end)
+    |> Enum.uniq()
   end
 
   @doc """
@@ -221,25 +214,27 @@ defmodule Baobab do
   Can be either the `:public` or `:secret` key
   """
   def identity_key(identity, which) do
-    case Path.join([id_dir(identity), Atom.to_string(which)]) |> File.read() do
-      {:ok, key} -> key
-      _ -> :error
+    case Pockets.get(db(:identity), identity) do
+      {secret, public} ->
+        case which do
+          :secret -> secret
+          :public -> public
+          _ -> :error
+        end
+
+      _ ->
+        :error
     end
   end
 
   @doc false
-  def log_dir(author, log_id) when is_integer(log_id),
-    do: log_dir(author, Integer.to_string(log_id))
+  def db(which) do
+    {:ok, name} =
+      Pockets.open(which, Path.join([proper_config_path(), Atom.to_string(which) <> ".dets"]),
+        create?: true
+      )
 
-  def log_dir(author, log_id) do
-    Path.join([content_dir(), author, log_id]) |> ensure_exists
-  end
-
-  defp id_dir(identity),
-    do: Path.join([proper_config_path(), "identity", identity]) |> ensure_exists
-
-  defp content_dir() do
-    Path.join([proper_config_path(), "content"])
+    name
   end
 
   defp proper_config_path do

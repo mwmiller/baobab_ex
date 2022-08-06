@@ -5,7 +5,11 @@ defmodule BaobabTest do
   setup do
     # Maybe we'll actually do some setup someday
     # For now we just want to clear the test spool
-    on_exit(fn -> File.rm_rf(Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()) end)
+    on_exit(fn ->
+      Pockets.close(:identity)
+      Pockets.close(:content)
+      File.rm_rf(Application.fetch_env!(:baobab, :spool_dir) |> Path.expand())
+    end)
   end
 
   test "import remote entry" do
@@ -59,16 +63,16 @@ defmodule BaobabTest do
     assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()
 
     assert [
-             {:ok, 2},
-             {:ok, 3},
-             {:ok, 5},
-             {:ok, 6},
-             {:ok, 7},
-             {:ok, 8},
-             {:ok, 9},
-             {:ok, 10},
-             {:ok, 11},
-             {:ok, 12}
+             {:content, 2},
+             {:content, 3},
+             {:content, 5},
+             {:content, 6},
+             {:content, 7},
+             {:content, 8},
+             {:content, 9},
+             {:content, 10},
+             {:content, 11},
+             {:content, 12}
            ] = Baobab.compact("testy")
 
     assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()

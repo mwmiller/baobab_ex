@@ -27,7 +27,7 @@ defmodule Baobab.Entry do
     signer = Baobab.identity_key(identity, :secret)
     prev = Baobab.max_seqnum(author, log_id: log_id)
     seq = prev + 1
-    :ok = handle_seq_file({author, log_id, seq}, "payload", :write, payload)
+    handle_seq_file({author, log_id, seq}, :payload, :write, payload)
     head = <<0>> <> author <> Varu64.encode(log_id) <> Varu64.encode(seq)
 
     ll =
@@ -46,7 +46,7 @@ defmodule Baobab.Entry do
 
     meat = head <> ll <> bl <> tail
     sig = Ed25519.signature(meat, signer, author)
-    :ok = handle_seq_file({author, log_id, seq}, "entry", :write, meat <> sig)
+    handle_seq_file({author, log_id, seq}, :entry, :write, meat <> sig)
     retrieve(author, seq, {:entry, log_id, true, false})
   end
 
@@ -59,8 +59,7 @@ defmodule Baobab.Entry do
         } = entry,
         false
       ) do
-    case handle_seq_file({author, log_id, seq}, "payload", :exists) and
-           handle_seq_file({author, log_id, seq}, "entry", :exists) do
+    case handle_seq_file({author, log_id, seq}, :entry, :exists) do
       false -> store(entry, true)
       true -> entry
     end
@@ -81,7 +80,7 @@ defmodule Baobab.Entry do
         },
         true
       ) do
-    :ok = handle_seq_file({author, log_id, seq}, "payload", :write, payload)
+    handle_seq_file({author, log_id, seq}, :payload, :write, payload)
 
     contents =
       tag <>
@@ -89,7 +88,7 @@ defmodule Baobab.Entry do
         Varu64.encode(log_id) <>
         Varu64.encode(seq) <> option(ll) <> option(bl) <> Varu64.encode(size) <> ph <> sig
 
-    :ok = handle_seq_file({author, log_id, seq}, "entry", :write, contents)
+    handle_seq_file({author, log_id, seq}, :entry, :write, contents)
 
     retrieve(author, seq, {:entry, 0, true, true})
   end
@@ -102,8 +101,7 @@ defmodule Baobab.Entry do
   @doc false
   def delete(author, seq, {_, log_id, _, _}) do
     entry_id = {author, log_id, seq}
-    handle_seq_file(entry_id, "payload", :delete)
-    handle_seq_file(entry_id, "entry", :delete)
+    handle_seq_file(entry_id, :entry, :delete)
   end
 
   @doc false
@@ -111,8 +109,8 @@ defmodule Baobab.Entry do
   def retrieve(author, seq, {:binary, log_id, false, _}) do
     entry_id = {author, log_id, seq}
 
-    case {handle_seq_file(entry_id, "entry", :content),
-          handle_seq_file(entry_id, "payload", :content)} do
+    case {handle_seq_file(entry_id, :entry, :content),
+          handle_seq_file(entry_id, :payload, :content)} do
       {:error, _} -> :error
       {_, :error} -> :error
       {entry, payload} -> entry <> payload
@@ -127,8 +125,8 @@ defmodule Baobab.Entry do
 
     case {entry_id |> file(:content) |> from_binary(validate), fmt} do
       {:error, _} ->
-        handle_seq_file(entry_id, "payload", :delete)
-        handle_seq_file(entry_id, "entry", :delete)
+        handle_seq_file(entry_id, :payload, :delete)
+        handle_seq_file(entry_id, :entry, :delete)
         :error
 
       {entry, :entry} ->
@@ -203,50 +201,45 @@ defmodule Baobab.Entry do
 
   @doc false
   def file(entry_id, which),
-    do: handle_seq_file(entry_id, "entry", which)
+    do: handle_seq_file(entry_id, :entry, which)
 
   defp payload_file(entry_id, which),
-    do: handle_seq_file(entry_id, "payload", which)
+    do: handle_seq_file(entry_id, :payload, which)
 
   defp handle_seq_file({author, log_id, seq}, name, how, content \\ nil) do
-    a = author |> Baobab.b62identity()
-    p = content_dir({a, log_id, seq})
-    n = Path.join([p, name <> "_" <> Integer.to_string(seq)])
+    key = {author |> Baobab.b62identity(), log_id, seq}
+    db = Baobab.db(:content)
 
     case how do
-      :name ->
-        n
-
       :content ->
-        case File.read(n) do
-          {:ok, c} -> c
+        case Pockets.get(db, key) do
+          %{^name => c} -> c
           _ -> :error
         end
 
       :hash ->
-        case File.read(n) do
-          {:ok, c} -> YAMFhash.create(c, 0)
+        case Pockets.get(db, key) do
+          %{^name => c} -> YAMFhash.create(c, 0)
           _ -> :error
         end
 
       :delete ->
-        File.rm(n)
+        Pockets.delete(db, key)
 
       :write ->
-        File.mkdir_p(p)
-        File.write(n, content)
+        prev =
+          case Pockets.get(db, key) do
+            nil -> %{}
+            val -> val
+          end
+
+        Pockets.put(db, key, Map.merge(prev, %{name => content}))
 
       :exists ->
-        File.exists?(n)
+        case Pockets.get(db, key) do
+          nil -> false
+          _ -> true
+        end
     end
   end
-
-  defp content_dir({author, log_id, seq}) when is_integer(log_id),
-    do: content_dir({author, Integer.to_string(log_id), seq})
-
-  defp content_dir({author, log_id, seq}) do
-    Path.join([Baobab.log_dir(author, log_id), pp(seq, 13), pp(seq, 11)])
-  end
-
-  defp pp(n, m), do: n |> rem(m) |> Integer.to_string()
 end
