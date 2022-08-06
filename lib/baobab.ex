@@ -41,6 +41,29 @@ defmodule Baobab do
   end
 
   @doc """
+  Compact log contents to only items in the certificate pool for
+  the latest entry.  This allows validation while reducing space used
+  """
+  def compact(author, options \\ []) do
+    a = author |> b62identity
+    opts = parse_options(options)
+
+    case all_seqnum(a, options) do
+      [] ->
+        []
+
+      entries ->
+        last = List.last(entries)
+        pool = certificate_pool(a, last, opts) |> MapSet.new()
+        eset = entries |> MapSet.new()
+
+        for e <- MapSet.difference(eset, pool) do
+          {Baobab.Entry.delete(a, e, opts), e}
+        end
+    end
+  end
+
+  @doc """
   Import and store a list of log entries from their binary format.
   """
   @spec import([binary]) :: [%Baobab.Entry{} | :error]
@@ -113,6 +136,17 @@ defmodule Baobab do
   author key and log number
   """
   def max_seqnum(author, options \\ []) do
+    case all_seqnum(author, options) |> List.last() do
+      nil -> 0
+      max -> max
+    end
+  end
+
+  @doc """
+  Retrieve the list of  sequence numbers on a particular log identified by the
+  author key and log number
+  """
+  def all_seqnum(author, options \\ []) do
     a = author |> b62identity
 
     {_, log_id, _, _} = parse_options(options)
@@ -120,10 +154,10 @@ defmodule Baobab do
     [log_dir(a, log_id), "**", "{entry_*}"]
     |> Path.join()
     |> Path.wildcard()
-    |> Enum.map(fn n -> Path.basename(n) end)
-    |> Enum.reduce(0, fn n, a ->
-      Enum.max([a, n |> String.split("_") |> List.last() |> String.to_integer()])
+    |> Enum.map(fn n ->
+      n |> Path.basename() |> String.split("_") |> List.last() |> String.to_integer()
     end)
+    |> Enum.sort()
   end
 
   @doc """

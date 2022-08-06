@@ -100,6 +100,13 @@ defmodule Baobab.Entry do
   defp option(val), do: val
 
   @doc false
+  def delete(author, seq, {_, log_id, _, _}) do
+    entry_id = {author, log_id, seq}
+    handle_seq_file(entry_id, "payload", :delete)
+    handle_seq_file(entry_id, "entry", :delete)
+  end
+
+  @doc false
   # Handle the simplest case first
   def retrieve(author, seq, {:binary, log_id, false, _}) do
     entry_id = {author, log_id, seq}
