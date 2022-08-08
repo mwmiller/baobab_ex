@@ -3,11 +3,10 @@ defmodule BaobabTest do
   doctest Baobab
 
   setup do
-    # Maybe we'll actually do some setup someday
-    # For now we just want to clear the test spool
+    Baobab.db(:all, :open)
+
     on_exit(fn ->
-      Pockets.close(:identity)
-      Pockets.close(:content)
+      Baobab.db(:all, :close)
       File.rm_rf(Application.fetch_env!(:baobab, :spool_dir) |> Path.expand())
     end)
   end

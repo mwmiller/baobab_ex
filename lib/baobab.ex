@@ -228,14 +228,28 @@ defmodule Baobab do
   end
 
   @doc false
-  def db(which) do
-    {:ok, name} =
+  def db(which, action \\ :open) do
+    case which do
+      :all ->
+        for db <- [:identity, :content] do
+          pockets_act(db, action)
+        end
+
+      which ->
+        pockets_act(which, action)
+    end
+
+    which
+  end
+
+  defp pockets_act(which, :open) do
+    {:ok, ^which} =
       Pockets.open(which, Path.join([proper_config_path(), Atom.to_string(which) <> ".dets"]),
         create?: true
       )
-
-    name
   end
+
+  defp pockets_act(which, :close), do: Pockets.close(which)
 
   defp proper_config_path do
     Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
