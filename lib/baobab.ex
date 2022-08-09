@@ -152,10 +152,9 @@ defmodule Baobab do
     {_, log_id, _, _} = parse_options(options)
 
     :content
-    |> db
-    |> Pockets.keys_stream()
-    |> Stream.filter(fn {a, l, _} -> a == auth and l == log_id end)
-    |> Stream.map(fn {_, _, e} -> e end)
+    |> pocket(:keys)
+    |> Enum.filter(fn {a, l, _} -> a == auth and l == log_id end)
+    |> Enum.map(fn {_, _, e} -> e end)
     |> Enum.sort()
   end
 
@@ -176,8 +175,8 @@ defmodule Baobab do
   # Maybe make it possible to provide secret ket or both
   # No overwiting? Error handling?
   def create_identity(identity) do
-    {secret, public} = Ed25519.generate_key_pair()
-    Pockets.put(db(:identity), identity, {secret, public})
+    {_secret, public} = pair = Ed25519.generate_key_pair()
+    pocket(:identity, :put, {identity, pair})
     public |> b62identity
   end
 
@@ -202,8 +201,7 @@ defmodule Baobab do
 
   defp logs do
     :content
-    |> db
-    |> Pockets.keys_stream()
+    |> pocket(:keys)
     |> Stream.map(fn {a, l, _} -> {a, l} end)
     |> Enum.uniq()
   end
@@ -214,7 +212,7 @@ defmodule Baobab do
   Can be either the `:public` or `:secret` key
   """
   def identity_key(identity, which) do
-    case Pockets.get(db(:identity), identity) do
+    case pocket(:identity, :get, identity) do
       {secret, public} ->
         case which do
           :secret -> secret
@@ -228,31 +226,22 @@ defmodule Baobab do
   end
 
   @doc false
-  def db(which, action \\ :open) do
-    case which do
-      :all ->
-        for db <- [:identity, :content] do
-          pockets_act(db, action)
-        end
-
-      which ->
-        pockets_act(which, action)
-    end
-
-    which
+  def pocket(which, action, value \\ nil) do
+    {:ok, ^which} = Pockets.open(which, proper_db_path(which), create?: true)
+    retval = pocket_act(which, action, value)
+    Pockets.close(which)
+    retval
   end
 
-  defp pockets_act(which, :open) do
-    {:ok, ^which} =
-      Pockets.open(which, Path.join([proper_config_path(), Atom.to_string(which) <> ".dets"]),
-        create?: true
-      )
-  end
+  defp pocket_act(which, :get, key), do: Pockets.get(which, key)
+  defp pocket_act(which, :keys, nil), do: Pockets.keys(which)
+  defp pocket_act(which, :delete, key), do: Pockets.delete(which, key)
+  defp pocket_act(which, :put, {k, v}), do: Pockets.put(which, k, v)
 
-  defp pockets_act(which, :close), do: Pockets.close(which)
-
-  defp proper_config_path do
-    Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
+  defp proper_db_path(which) do
+    file = Atom.to_string(which) <> ".dets"
+    dir = Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
+    Path.join([dir, file])
   end
 
   @doc """

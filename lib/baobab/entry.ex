@@ -109,8 +109,8 @@ defmodule Baobab.Entry do
   def retrieve(author, seq, {:binary, log_id, false, _}) do
     entry_id = {author, log_id, seq}
 
-    case {handle_seq_file(entry_id, :entry, :content),
-          handle_seq_file(entry_id, :payload, :content)} do
+    case {handle_seq_file(entry_id, :entry, :contents),
+          handle_seq_file(entry_id, :payload, :contents)} do
       {:error, _} -> :error
       {_, :error} -> :error
       {entry, payload} -> entry <> payload
@@ -123,7 +123,7 @@ defmodule Baobab.Entry do
   def retrieve(author, seq, {fmt, log_id, validate, _}) do
     entry_id = {author, log_id, seq}
 
-    case {entry_id |> file(:content) |> from_binary(validate), fmt} do
+    case {entry_id |> file(:contents) |> from_binary(validate), fmt} do
       {:error, _} ->
         handle_seq_file(entry_id, :payload, :delete)
         handle_seq_file(entry_id, :entry, :delete)
@@ -192,7 +192,7 @@ defmodule Baobab.Entry do
   # If we only got the `entry` portion, assume we might have it on disk
   # The `:error` in the struct can act at a signal that we don't
   defp add_payload(%Baobab.Entry{author: author, log_id: log_id, seqnum: seqnum} = map, "") do
-    Map.put(map, :payload, payload_file({author, log_id, seqnum}, :content))
+    Map.put(map, :payload, payload_file({author, log_id, seqnum}, :contents))
   end
 
   defp add_payload(map, payload) do
@@ -208,38 +208,18 @@ defmodule Baobab.Entry do
 
   defp handle_seq_file({author, log_id, seq}, name, how, content \\ nil) do
     key = {author |> Baobab.b62identity(), log_id, seq}
-    db = Baobab.db(:content)
+    curr = Baobab.pocket(:content, :get, key)
 
-    case how do
-      :content ->
-        case Pockets.get(db, key) do
-          %{^name => c} -> c
-          _ -> :error
-        end
-
-      :hash ->
-        case Pockets.get(db, key) do
-          %{^name => c} -> YAMFhash.create(c, 0)
-          _ -> :error
-        end
-
-      :delete ->
-        Pockets.delete(db, key)
-
-      :write ->
-        prev =
-          case Pockets.get(db, key) do
-            nil -> %{}
-            val -> val
-          end
-
-        Pockets.put(db, key, Map.merge(prev, %{name => content}))
-
-      :exists ->
-        case Pockets.get(db, key) do
-          nil -> false
-          _ -> true
-        end
+    case {how, curr} do
+      {:delete, nil} -> :ok
+      {:delete, _} -> Baobab.pocket(:content, :delete, key)
+      {:contents, %{^name => c}} -> c
+      {:hash, %{^name => c}} -> YAMFhash.create(c, 0)
+      {:write, nil} -> Baobab.pocket(:content, :put, {key, %{name => content}})
+      {:write, val} -> Baobab.pocket(:content, :put, {key, Map.merge(val, %{name => content})})
+      {:exists, nil} -> false
+      {:exists, _} -> true
+      {_, _} -> :error
     end
   end
 end

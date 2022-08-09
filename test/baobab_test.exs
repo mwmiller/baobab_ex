@@ -3,10 +3,7 @@ defmodule BaobabTest do
   doctest Baobab
 
   setup do
-    Baobab.db(:all, :open)
-
     on_exit(fn ->
-      Baobab.db(:all, :close)
       File.rm_rf(Application.fetch_env!(:baobab, :spool_dir) |> Path.expand())
     end)
   end

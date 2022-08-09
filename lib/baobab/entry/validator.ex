@@ -69,7 +69,7 @@ defmodule Baobab.Entry.Validator do
         seqnum: seq,
         log_id: log_id
       }) do
-    wsig = Baobab.Entry.file({author, log_id, seq}, :content)
+    wsig = Baobab.Entry.file({author, log_id, seq}, :contents)
     Ed25519.valid_signature?(sig, :binary.part(wsig, {0, byte_size(wsig) - 64}), author)
   end
 
@@ -96,7 +96,7 @@ defmodule Baobab.Entry.Validator do
         false
 
       {_, n, ll} ->
-        case Baobab.Entry.file({author, log_id, n}, :content) do
+        case Baobab.Entry.file({author, log_id, n}, :contents) do
           :error -> false
           fll -> YAMFhash.verify(ll, fll) == ""
         end
@@ -111,7 +111,7 @@ defmodule Baobab.Entry.Validator do
   def valid_backlink?(%Baobab.Entry{backlink: nil}), do: false
 
   def valid_backlink?(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, backlink: bl}) do
-    case Baobab.Entry.file({author, log_id, seq - 1}, :content) do
+    case Baobab.Entry.file({author, log_id, seq - 1}, :contents) do
       # We don't have it so we cannot check it.  We'll say it's OK
       # This is required for partial replication to be meaningful.
       # I am sure I will come to regret this post-haste
