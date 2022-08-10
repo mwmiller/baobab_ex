@@ -152,9 +152,12 @@ defmodule Baobab do
     {_, log_id, _, _} = parse_options(options)
 
     :content
-    |> pocket(:keys)
-    |> Enum.filter(fn {a, l, _} -> a == auth and l == log_id end)
-    |> Enum.map(fn {_, _, e} -> e end)
+    |> spool(:foldl, fn item, acc ->
+      case item do
+        {{^auth, ^log_id, e}, _} -> [e | acc]
+        _ -> acc
+      end
+    end)
     |> Enum.sort()
   end
 
@@ -176,7 +179,7 @@ defmodule Baobab do
   # No overwiting? Error handling?
   def create_identity(identity) do
     {_secret, public} = pair = Ed25519.generate_key_pair()
-    pocket(:identity, :put, {identity, pair})
+    spool(:identity, :put, {identity, pair})
     public |> b62identity
   end
 
@@ -201,8 +204,12 @@ defmodule Baobab do
 
   defp logs do
     :content
-    |> pocket(:keys)
-    |> Stream.map(fn {a, l, _} -> {a, l} end)
+    |> spool(:foldl, fn item, acc ->
+      case item do
+        {{a, l, _}, _} -> [{a, l} | acc]
+        _ -> acc
+      end
+    end)
     |> Enum.uniq()
   end
 
@@ -212,7 +219,7 @@ defmodule Baobab do
   Can be either the `:public` or `:secret` key
   """
   def identity_key(identity, which) do
-    case pocket(:identity, :get, identity) do
+    case spool(:identity, :get, identity) do
       {secret, public} ->
         case which do
           :secret -> secret
@@ -226,22 +233,30 @@ defmodule Baobab do
   end
 
   @doc false
-  def pocket(which, action, value \\ nil) do
-    {:ok, ^which} = Pockets.open(which, proper_db_path(which), create?: true)
-    retval = pocket_act(which, action, value)
-    Pockets.close(which)
+  def spool(which, action, value \\ nil) do
+    {:ok, ^which} =
+      :dets.open_file(which, file: proper_db_path(which), ram_file: true, auto_save: 30091)
+
+    retval = spool_act(which, action, value)
+    :dets.close(which)
     retval
   end
 
-  defp pocket_act(which, :get, key), do: Pockets.get(which, key)
-  defp pocket_act(which, :keys, nil), do: Pockets.keys(which)
-  defp pocket_act(which, :delete, key), do: Pockets.delete(which, key)
-  defp pocket_act(which, :put, {k, v}), do: Pockets.put(which, k, v)
+  defp spool_act(which, :get, key) do
+    case :dets.lookup(which, key) do
+      [{^key, val} | _] -> val
+      [] -> nil
+    end
+  end
+
+  defp spool_act(which, :foldl, fun), do: :dets.foldl(fun, [], which)
+  defp spool_act(which, :delete, key), do: :dets.delete(which, key)
+  defp spool_act(which, :put, kv), do: :dets.insert(which, kv)
 
   defp proper_db_path(which) do
     file = Atom.to_string(which) <> ".dets"
     dir = Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
-    Path.join([dir, file])
+    Path.join([dir, file]) |> to_charlist
   end
 
   @doc """

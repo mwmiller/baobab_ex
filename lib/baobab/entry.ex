@@ -208,15 +208,15 @@ defmodule Baobab.Entry do
 
   defp handle_seq_file({author, log_id, seq}, name, how, content \\ nil) do
     key = {author |> Baobab.b62identity(), log_id, seq}
-    curr = Baobab.pocket(:content, :get, key)
+    curr = Baobab.spool(:content, :get, key)
 
     case {how, curr} do
       {:delete, nil} -> :ok
-      {:delete, _} -> Baobab.pocket(:content, :delete, key)
+      {:delete, _} -> Baobab.spool(:content, :delete, key)
       {:contents, %{^name => c}} -> c
       {:hash, %{^name => c}} -> YAMFhash.create(c, 0)
-      {:write, nil} -> Baobab.pocket(:content, :put, {key, %{name => content}})
-      {:write, val} -> Baobab.pocket(:content, :put, {key, Map.merge(val, %{name => content})})
+      {:write, nil} -> Baobab.spool(:content, :put, {key, %{name => content}})
+      {:write, val} -> Baobab.spool(:content, :put, {key, Map.merge(val, %{name => content})})
       {:exists, nil} -> false
       {:exists, _} -> true
       {_, _} -> :error
