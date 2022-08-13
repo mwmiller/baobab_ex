@@ -7,41 +7,50 @@ defmodule Baobab.Entry.Validator do
 
   Includes validation of its available certificate pool
   """
-  @spec validate(%Baobab.Entry{}) :: %Baobab.Entry{} | :error
+  @spec validate(%Baobab.Entry{}) :: %Baobab.Entry{} | {:error, String.t()}
   def validate(%Baobab.Entry{seqnum: seq, author: author, log_id: log_id} = entry) do
-    case valid_entry?(entry) do
-      false ->
-        :error
-
-      true ->
+    case validate_entry(entry) do
+      :ok ->
         case verify_chain(
                Baobab.certificate_pool(author, seq, log_id),
                {author, log_id},
-               true
+               :ok
              ) do
-          false -> :error
-          true -> entry
+          :ok -> entry
+          error -> error
         end
+
+      error ->
+        error
     end
   end
 
-  def validate(_), do: :error
+  def validate(_), do: {:error, "Input is not a Baobab.Enry"}
 
   defp verify_chain([], _log, answer), do: answer
-  defp verify_chain(_links, _log, false), do: false
+  defp verify_chain(_links, _log, answer) when is_tuple(answer), do: answer
 
-  defp verify_chain([seq | rest], {author, log_id} = which, answer) do
-    truth =
+  defp verify_chain([seq | rest], {author, log_id} = which, _answer) do
+    new_answer =
       case Baobab.Entry.retrieve(author, seq, {:entry, log_id, false}) do
-        :error -> false
-        link -> valid_link?(link)
+        :error ->
+          {:error, "Could not retrieve certificate chain seqnum: " <> Integer.to_string(seq)}
+
+        link ->
+          validate_link(link)
       end
 
-    verify_chain(rest, which, answer and truth)
+    verify_chain(rest, which, new_answer)
   end
 
-  defp valid_link?(entry) do
-    valid_sig?(entry) and valid_backlink?(entry) and valid_lipmaalink?(entry)
+  defp validate_link(entry) do
+    with :ok <- validate_sig(entry),
+         :ok <- validate_backlink(entry),
+         :ok <- validate_lipmaalink(entry) do
+      :ok
+    else
+      error -> error
+    end
   end
 
   @doc """
@@ -53,52 +62,76 @@ defmodule Baobab.Entry.Validator do
     - Backlink
     - Lipmaalink
   """
-  @spec valid_entry?(%Baobab.Entry{}) :: boolean
-  def valid_entry?(entry) do
-    valid_sig?(entry) and valid_payload_hash?(entry) and valid_backlink?(entry) and
-      valid_lipmaalink?(entry)
+  @spec validate_entry(%Baobab.Entry{}) :: :ok | {:error, String.t()}
+  def validate_entry(entry) do
+    with :ok <- validate_sig(entry),
+         :ok <- validate_payload_hash(entry),
+         :ok <- validate_backlink(entry),
+         :ok <- validate_lipmaalink(entry) do
+      :ok
+    else
+      error -> error
+    end
   end
 
   @doc """
   Validate the `sig` field of a `Baobab.Entry`
   """
-  @spec valid_sig?(%Baobab.Entry{}) :: boolean
-  def valid_sig?(%Baobab.Entry{
+  @spec validate_sig(%Baobab.Entry{}) :: :ok | {:error, String.t()}
+  def validate_sig(%Baobab.Entry{
         sig: sig,
         author: author,
         seqnum: seq,
         log_id: log_id
       }) do
     wsig = Baobab.Entry.file({author, log_id, seq}, :contents)
-    Ed25519.valid_signature?(sig, :binary.part(wsig, {0, byte_size(wsig) - 64}), author)
+
+    case Ed25519.valid_signature?(sig, :binary.part(wsig, {0, byte_size(wsig) - 64}), author) do
+      true -> :ok
+      false -> {:error, "Invalid signature"}
+    end
   end
 
   @doc """
   Validate the `payload_hash` field of a `Baobab.Entry`
   """
-  @spec valid_payload_hash?(%Baobab.Entry{}) :: boolean
-  def valid_payload_hash?(%Baobab.Entry{payload: payload, payload_hash: hash}) do
-    YAMFhash.verify(hash, payload) == ""
+  @spec validate_payload_hash(%Baobab.Entry{}) :: :ok | {:error, String.t()}
+  def validate_payload_hash(%Baobab.Entry{payload: payload, payload_hash: hash}) do
+    case YAMFhash.verify(hash, payload) do
+      <<>> -> :ok
+      _ -> {:error, "Invalid payload hash"}
+    end
   end
 
   @doc """
   Validate the `lipmaalink` field of a `Baobab.Entry`
   """
-  @spec valid_lipmaalink?(%Baobab.Entry{}) :: boolean
-  def valid_lipmaalink?(%Baobab.Entry{seqnum: 1, lipmaalink: nil}), do: true
+  @spec validate_lipmaalink(%Baobab.Entry{}) :: :ok | {:error, String.t()}
+  def validate_lipmaalink(%Baobab.Entry{seqnum: 1, lipmaalink: nil}), do: :ok
 
-  def valid_lipmaalink?(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, lipmaalink: ll}) do
+  def validate_lipmaalink(%Baobab.Entry{
+        author: author,
+        log_id: log_id,
+        seqnum: seq,
+        lipmaalink: ll
+      }) do
     case {seq - 1, Lipmaa.linkseq(seq), ll} do
       {n, n, nil} ->
-        true
+        :ok
 
       {n, n, _} ->
-        false
+        {:error, "Invalid lipmaa link when matches backlink"}
 
       {_, n, ll} ->
         case Baobab.Entry.file({author, log_id, n}, :contents) do
-          :error -> false
-          fll -> YAMFhash.verify(ll, fll) == ""
+          :error ->
+            {:error, "Missing lipmaalink entry for verificaton"}
+
+          fll ->
+            case YAMFhash.verify(ll, fll) do
+              <<>> -> :ok
+              _ -> {:error, "Invalid lipmaalink hash"}
+            end
         end
     end
   end
@@ -106,17 +139,23 @@ defmodule Baobab.Entry.Validator do
   @doc """
   Validate the `backlink` field of a `Baobab.Entry`
   """
-  @spec valid_backlink?(%Baobab.Entry{}) :: boolean
-  def valid_backlink?(%Baobab.Entry{seqnum: 1, backlink: nil}), do: true
-  def valid_backlink?(%Baobab.Entry{backlink: nil}), do: false
+  @spec validate_backlink(%Baobab.Entry{}) :: :ok | {:error, String.t()}
+  def validate_backlink(%Baobab.Entry{seqnum: 1, backlink: nil}), do: :ok
+  def validate_backlink(%Baobab.Entry{backlink: nil}), do: {:error, "Missing required backlink"}
 
-  def valid_backlink?(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, backlink: bl}) do
+  def validate_backlink(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, backlink: bl}) do
     case Baobab.Entry.file({author, log_id, seq - 1}, :contents) do
       # We don't have it so we cannot check it.  We'll say it's OK
       # This is required for partial replication to be meaningful.
       # I am sure I will come to regret this post-haste
-      :error -> true
-      back_entry -> YAMFhash.verify(bl, back_entry) == ""
+      :error ->
+        :ok
+
+      back_entry ->
+        case YAMFhash.verify(bl, back_entry) do
+          <<>> -> :ok
+          _ -> {:error, "Invalid backlink hash"}
+        end
     end
   end
 end

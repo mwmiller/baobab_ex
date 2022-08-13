@@ -93,7 +93,7 @@ defmodule Baobab.Entry do
     retrieve(author, seq, {:entry, 0, true})
   end
 
-  def store(_, _), do: :error
+  def store(_, _), do: {:error, "Attempt to store non-Baobab.Entry"}
 
   defp option(val) when is_nil(val), do: <<>>
   defp option(val), do: val
@@ -140,13 +140,13 @@ defmodule Baobab.Entry do
   @doc false
   def from_binary(bin, false), do: from_binary(bin)
   def from_binary(bin, true), do: bin |> from_binary |> Baobab.Entry.Validator.validate()
-  def from_binary(_, _), do: :error
+  def from_binary(_, _), do: {:error, "Could not interpret parameters to from_binary"}
 
   defp from_binary(<<tag::binary-size(1), author::binary-size(32), rest::binary>>) do
     add_logid(%Baobab.Entry{tag: tag, author: author}, rest)
   end
 
-  defp from_binary(_), do: :error
+  defp from_binary(_), do: {:error, "Could not interpret parameters to from_binary"}
 
   defp add_logid(map, bin) do
     {logid, rest} = Varu64.decode(bin)

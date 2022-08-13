@@ -85,8 +85,8 @@ defmodule BaobabTest do
     assert :error = Baobab.identity_key("newb", :secret)
     assert :error = Baobab.identity_key("newb", :public)
 
-    assert [:error] = Baobab.import("")
-    assert [:error] = Baobab.import([""])
+    assert [{:error, "Import requires a list of Baobab.Entry structs"}] = Baobab.import("")
+    assert [{:error, "Attempt to store non-Baobab.Entry"}] = Baobab.import([""])
 
     assert_raise RuntimeError, fn -> Baobab.log_at("newb", 5) end
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF", 5)

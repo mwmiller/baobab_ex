@@ -4,7 +4,7 @@ defmodule Baobab.MixProject do
   def project do
     [
       app: :baobab,
-      version: "0.7.0",
+      version: "0.8.0",
       elixir: "~> 1.13",
       name: "Baobab",
       source_url: "https://github.com/mwmiller/baobab_ex",

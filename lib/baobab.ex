@@ -70,7 +70,7 @@ defmodule Baobab do
   @doc """
   Import and store a list of log entries from their binary format.
   """
-  @spec import([binary]) :: [%Baobab.Entry{} | :error]
+  @spec import([binary]) :: [%Baobab.Entry{} | {:error, String.t()}]
   def import(binaries, options \\ [])
 
   def import(binaries, options) when is_list(binaries) do
@@ -78,7 +78,7 @@ defmodule Baobab do
     do_import(binaries, replace, [])
   end
 
-  def import(_, _), do: [:error]
+  def import(_, _), do: [{:error, "Import requires a list of Baobab.Entry structs"}]
   defp do_import([], _, acc), do: Enum.reverse(acc)
 
   defp do_import([binary | rest], overwrite, acc) do
