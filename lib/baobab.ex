@@ -274,8 +274,7 @@ defmodule Baobab do
 
   @doc false
   def spool(which, action, value \\ nil) do
-    {:ok, ^which} =
-      :dets.open_file(which, file: proper_db_path(which), ram_file: true, auto_save: 30091)
+    {:ok, ^which} = :dets.open_file(which, file: proper_db_path(which))
 
     retval = spool_act(which, action, value)
     :dets.close(which)
