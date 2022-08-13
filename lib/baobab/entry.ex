@@ -90,7 +90,7 @@ defmodule Baobab.Entry do
 
     handle_seq_file({author, log_id, seq}, :entry, :write, contents)
 
-    retrieve(author, seq, {:entry, 0, true})
+    retrieve(author, seq, {:entry, log_id, true})
   end
 
   def store(_, _), do: {:error, "Attempt to store non-Baobab.Entry"}
