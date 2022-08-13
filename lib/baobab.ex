@@ -27,16 +27,20 @@ defmodule Baobab do
     32
   )
 
-  defp parse_options(opts) do
-    {Keyword.get(opts, :format, :entry), Keyword.get(opts, :log_id, 0),
-     Keyword.get(opts, :revalidate, false), Keyword.get(opts, :replace, false)}
-  end
+  @defaults %{format: :entry, log_id: 0, revalidate: false, replace: false}
+
+  @doc false
+  def optvals(opts, keys), do: optvals(opts, keys, [])
+  def optvals(_, [], acc), do: Enum.reverse(acc) |> List.to_tuple()
+
+  def optvals(opts, [k | rest], acc),
+    do: optvals(opts, rest, [Keyword.get(opts, k, @defaults[k]) | acc])
 
   @doc """
   Create and store a new log entry for a stored identity
   """
   def append_log(payload, identity, options \\ []) do
-    {_, log_id, _, _} = parse_options(options)
+    {log_id} = options |> optvals([:log_id])
     Baobab.Entry.create(payload, identity, log_id)
   end
 
@@ -46,7 +50,7 @@ defmodule Baobab do
   """
   def compact(author, options \\ []) do
     a = author |> b62identity
-    opts = parse_options(options)
+    {log_id} = options |> optvals([:log_id])
 
     case all_seqnum(a, options) do
       [] ->
@@ -54,11 +58,11 @@ defmodule Baobab do
 
       entries ->
         last = List.last(entries)
-        pool = certificate_pool(a, last, opts) |> MapSet.new()
+        pool = certificate_pool(a, last, log_id) |> MapSet.new()
         eset = entries |> MapSet.new()
 
         for e <- MapSet.difference(eset, pool) do
-          {Baobab.Entry.delete(a, e, opts), e}
+          {Baobab.Entry.delete(a, e, log_id), e}
         end
     end
   end
@@ -67,11 +71,11 @@ defmodule Baobab do
   Import and store a list of log entries from their binary format.
   """
   @spec import([binary]) :: [%Baobab.Entry{} | :error]
-  def import(binaries, opts \\ [])
+  def import(binaries, options \\ [])
 
-  def import(binaries, opts) when is_list(binaries) do
-    {_, _, _, overwrite} = parse_options(opts)
-    do_import(binaries, overwrite, [])
+  def import(binaries, options) when is_list(binaries) do
+    {replace} = options |> optvals([:replace])
+    do_import(binaries, replace, [])
   end
 
   def import(_, _), do: [:error]
@@ -98,9 +102,9 @@ defmodule Baobab do
   """
   def log_at(author, seq, options \\ []) do
     ak = author |> b62identity
-    opts = parse_options(options)
+    {_, log_id, _} = opts = options |> optvals([:format, :log_id, :revalidate])
 
-    certificate_pool(ak, seq, opts)
+    certificate_pool(ak, seq, log_id)
     |> Enum.reverse()
     |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
   end
@@ -109,7 +113,8 @@ defmodule Baobab do
   Retrieve all available entries in a particular log
   """
   def full_log(author, options \\ []) do
-    opts = parse_options(options)
+    opts = options |> optvals([:format, :log_id, :revalidate])
+
     author |> b62identity |> gather_all_entries(opts, max_seqnum(author, options), [])
   end
 
@@ -126,7 +131,7 @@ defmodule Baobab do
   end
 
   @doc false
-  def certificate_pool(author, seq, {_, log_id, _, _}) do
+  def certificate_pool(author, seq, log_id) do
     max = max_seqnum(author, log_id: log_id)
     seq |> Lipmaa.cert_pool() |> Enum.reject(fn n -> n > max end)
   end
@@ -149,7 +154,7 @@ defmodule Baobab do
   def all_seqnum(author, options \\ []) do
     auth = author |> b62identity
 
-    {_, log_id, _, _} = parse_options(options)
+    {log_id} = options |> optvals([:log_id])
 
     :content
     |> spool(:foldl, fn item, acc ->
@@ -168,7 +173,7 @@ defmodule Baobab do
   def max_entry(author, options \\ [])
 
   def max_entry(author, options) do
-    opts = parse_options(options)
+    opts = options |> optvals([:format, :log_id, :revalidate])
     author |> b62identity |> Baobab.Entry.retrieve(max_seqnum(author, options), opts)
   end
 
