@@ -25,7 +25,7 @@ defmodule Baobab.Entry.Validator do
     end
   end
 
-  def validate(_), do: {:error, "Input is not a Baobab.Enry"}
+  def validate(_), do: {:error, "Input is not a Baobab.Entry"}
 
   defp verify_chain([], _log, answer), do: answer
   defp verify_chain(_links, _log, answer) when is_tuple(answer), do: answer

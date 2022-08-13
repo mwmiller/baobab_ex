@@ -139,14 +139,20 @@ defmodule Baobab.Entry do
 
   @doc false
   def from_binary(bin, false), do: from_binary(bin)
-  def from_binary(bin, true), do: bin |> from_binary |> Baobab.Entry.Validator.validate()
-  def from_binary(_, _), do: {:error, "Could not interpret parameters to from_binary"}
+
+  def from_binary(bin, true) do
+    case bin |> from_binary do
+      %Baobab.Entry{} = entry -> Baobab.Entry.Validator.validate(entry)
+      _ -> {:error, "Could not create Entry from binary"}
+    end
+  end
+
+  defp from_binary(bin) when byte_size(bin) < 33,
+    do: {:error, "Truncated binary cannot be reified"}
 
   defp from_binary(<<tag::binary-size(1), author::binary-size(32), rest::binary>>) do
     add_logid(%Baobab.Entry{tag: tag, author: author}, rest)
   end
-
-  defp from_binary(_), do: {:error, "Could not interpret parameters to from_binary"}
 
   defp add_logid(map, bin) do
     {logid, rest} = Varu64.decode(bin)
