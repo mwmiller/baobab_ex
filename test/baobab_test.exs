@@ -25,6 +25,11 @@ defmodule BaobabTest do
 
   test "local use" do
     b62author = Baobab.create_identity("testy")
+    sk = Baobab.identity_key("testy", :secret)
+    assert b62author == Baobab.create_identity("testy_dupe", sk)
+    assert b62author == Baobab.create_identity("testy_dupe", BaseX.Base62.encode(sk))
+    # This test is a little on the nose, but meh.
+    assert_raise CaseClauseError, fn -> Baobab.create_identity("testy_bad", "notakey") end
 
     root = Baobab.append_log("An entry for testing", "testy")
     assert %Baobab.Entry{seqnum: 1, log_id: 0} = root
@@ -87,5 +92,24 @@ defmodule BaobabTest do
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF", 5)
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF0123456789A", 5)
     assert_raise RuntimeError, fn -> Baobab.log_at("0123456789ABCDEF0123456789ABCDEF0123", 5) end
+  end
+
+  test "purgeitory" do
+    b62first = Baobab.create_identity("first")
+    b62second = Baobab.create_identity("second")
+
+    Baobab.append_log("The first guy says", "first")
+    Baobab.append_log("The second guy says", "second")
+    Baobab.append_log("jive talk", "first", log_id: 1337)
+    Baobab.append_log("jive response", "second", log_id: 1337)
+    Baobab.append_log("alt.binaries.bork.bork.bork", "first", log_id: 42)
+
+    assert length(Baobab.stored_info()) == 5
+    assert length(Baobab.purge(:all, log_id: 1337)) == 3
+    assert length(Baobab.purge(b62second, log_id: :all)) == 2
+
+    assert [{b62first, 0, 1}] == Baobab.purge("first", log_id: 42)
+
+    assert [] == Baobab.purge(:all, log_id: :all)
   end
 end

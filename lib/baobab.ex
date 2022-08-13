@@ -110,6 +110,31 @@ defmodule Baobab do
   end
 
   @doc """
+  Purges a given log.
+
+  `:all` may be specified for `author` and/or the `log_id` option.
+  Specifying both effectively clears the entire store.
+
+  Returns `Baobab.stored_info/0`
+
+  ## Examples
+
+  iex> Baobab.purge(:all, log_id: :all)
+  []
+
+  """
+  def purge(author, options \\ []) do
+    case {author, optvals(options, [:log_id])} do
+      {:all, {:all}} -> spool(:content, :truncate)
+      {:all, {n}} -> spool(:content, :match_delete, {:_, n, :_})
+      {author, {:all}} -> spool(:content, :match_delete, {author |> b62identity, :_, :_})
+      {author, {n}} -> spool(:content, :match_delete, {author |> b62identity, n, :_})
+    end
+
+    Baobab.stored_info()
+  end
+
+  @doc """
   Retrieve all available entries in a particular log
   """
   def full_log(author, options \\ []) do
@@ -179,13 +204,23 @@ defmodule Baobab do
 
   @doc """
   Create and store a new identity
+
+  An optional secret key to be associated with the identity may provided, either
+  raw or base62 encoded. The public key will be derived therefrom.
+
   """
-  # Maybe make it possible to provide secret ket or both
-  # No overwiting? Error handling?
-  def create_identity(identity) do
-    {_secret, public} = pair = Ed25519.generate_key_pair()
+  def create_identity(identity, secret_key \\ nil) do
+    # This is just unrolling how Ed25519 works
+    secret =
+      case secret_key do
+        nil -> :crypto.strong_rand_bytes(32)
+        <<raw::binary-size(32)>> -> raw
+        <<b62::binary-size(43)>> -> BaseX.Base62.decode(b62)
+      end
+
+    pair = {secret, Ed25519.derive_public_key(secret)}
     spool(:identity, :put, {identity, pair})
-    public |> b62identity
+    elem(pair, 1) |> b62identity
   end
 
   @doc """
@@ -257,6 +292,10 @@ defmodule Baobab do
   defp spool_act(which, :foldl, fun), do: :dets.foldl(fun, [], which)
   defp spool_act(which, :delete, key), do: :dets.delete(which, key)
   defp spool_act(which, :put, kv), do: :dets.insert(which, kv)
+  defp spool_act(which, :truncate, _), do: :dets.delete_all_objects(which)
+
+  defp spool_act(which, :match_delete, key_pattern),
+    do: :dets.match_delete(which, {key_pattern, :_})
 
   defp proper_db_path(which) do
     file = Atom.to_string(which) <> ".dets"
