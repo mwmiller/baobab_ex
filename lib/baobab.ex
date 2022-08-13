@@ -82,8 +82,13 @@ defmodule Baobab do
   defp do_import([], _, acc), do: Enum.reverse(acc)
 
   defp do_import([binary | rest], overwrite, acc) do
-    entry = binary |> Baobab.Entry.from_binary(false) |> Baobab.Entry.store(overwrite)
-    do_import(rest, overwrite, [entry | acc])
+    result =
+      case binary |> Baobab.Entry.from_binary(false) do
+        {:error, _} = error -> error
+        entry -> Baobab.Entry.store(entry, overwrite)
+      end
+
+    do_import(rest, overwrite, [result | acc])
   end
 
   @doc """
