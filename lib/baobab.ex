@@ -182,12 +182,8 @@ defmodule Baobab do
     {log_id} = options |> optvals([:log_id])
 
     :content
-    |> spool(:foldl, fn item, acc ->
-      case item do
-        {{^auth, ^log_id, e}, _} -> [e | acc]
-        _ -> acc
-      end
-    end)
+    |> spool(:match, {auth, log_id, :"$1"})
+    |> List.flatten()
     |> Enum.sort()
   end
 
@@ -295,6 +291,9 @@ defmodule Baobab do
 
   defp spool_act(which, :match_delete, key_pattern),
     do: :dets.match_delete(which, {key_pattern, :_})
+
+  defp spool_act(which, :match, key_pattern),
+    do: :dets.match(which, {key_pattern, :_})
 
   defp proper_db_path(which) do
     file = Atom.to_string(which) <> ".dets"
