@@ -84,8 +84,11 @@ defmodule Baobab do
   defp do_import([binary | rest], overwrite, acc) do
     result =
       case binary |> Baobab.Entry.from_binary(false) do
-        {:error, _} = error -> error
-        entry -> Baobab.Entry.store(entry, overwrite)
+        {:error, _} = error ->
+          error
+
+        entry ->
+          Baobab.Entry.store(entry, overwrite)
       end
 
     do_import(rest, overwrite, [result | acc])
@@ -274,11 +277,10 @@ defmodule Baobab do
   end
 
   @doc false
-  def spool(which, action, value \\ nil) do
-    {:ok, ^which} = :dets.open_file(which, file: proper_db_path(which))
-
+  defp spool(which, action, value \\ nil) do
+    spool_store(which, :open)
     retval = spool_act(which, action, value)
-    :dets.close(which)
+    spool_store(which, :close)
     retval
   end
 
@@ -299,6 +301,66 @@ defmodule Baobab do
 
   defp spool_act(which, :match, key_pattern),
     do: :dets.match(which, {key_pattern, :_})
+
+  defp spool_store(which, :open),
+    do: {:ok, ^which} = :dets.open_file(which, file: proper_db_path(which))
+
+  defp spool_store(which, :close), do: :dets.close(which)
+
+  @doc false
+  def manage_content_store(entry_id, {name, how}),
+    do: manage_content_store(entry_id, {name, how, nil})
+
+  def manage_content_store({author, log_id, seq}, {name, how, content}) do
+    spool_store(:content, :open)
+    key = {author |> Baobab.b62identity(), log_id, seq}
+    curr = spool_act(:content, :get, key)
+
+    actval =
+      case {how, curr} do
+        {:delete, nil} ->
+          :ok
+
+        {:delete, _} ->
+          spool_act(:content, :delete, key)
+
+        {:contents, nil} ->
+          :error
+
+        {:contents, map} ->
+          case name do
+            :both -> {Map.get(map, :entry, :error), Map.get(map, :payload, :error)}
+            key -> Map.get(map, key, :error)
+          end
+
+        {:hash, %{^name => c}} ->
+          YAMFhash.create(c, 0)
+
+        {:write, prev} ->
+          case name do
+            :both ->
+              {entry, payload} = content
+
+              spool_act(:content, :put, {key, %{:entry => entry, :payload => payload}})
+
+            map_key ->
+              map = if is_nil(prev), do: %{}, else: prev
+              spool_act(:content, :put, {key, Map.merge(map, %{map_key => content})})
+          end
+
+        {:exists, nil} ->
+          false
+
+        {:exists, _} ->
+          true
+
+        {_, _} ->
+          :error
+      end
+
+    spool_store(:content, :close)
+    actval
+  end
 
   defp proper_db_path(which) do
     file = Atom.to_string(which) <> ".dets"

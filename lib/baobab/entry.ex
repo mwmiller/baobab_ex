@@ -27,27 +27,27 @@ defmodule Baobab.Entry do
     signer = Baobab.identity_key(identity, :secret)
     prev = Baobab.max_seqnum(author, log_id: log_id)
     seq = prev + 1
-    handle_seq_file({author, log_id, seq}, :payload, :write, payload)
     head = <<0>> <> author <> Varu64.encode(log_id) <> Varu64.encode(seq)
 
     ll =
       case Lipmaa.linkseq(seq) do
         ^prev -> <<>>
-        n -> handle_seq_file({author, log_id, n}, :entry, :hash)
+        n -> Baobab.manage_content_store({author, log_id, n}, {:entry, :hash})
       end
 
     bl =
       case prev do
         0 -> <<>>
-        n -> handle_seq_file({author, log_id, n}, :entry, :hash)
+        n -> Baobab.manage_content_store({author, log_id, n}, {:entry, :hash})
       end
 
     tail = Varu64.encode(byte_size(payload)) <> YAMFhash.create(payload, 0)
 
     meat = head <> ll <> bl <> tail
     sig = Ed25519.signature(meat, signer, author)
-    handle_seq_file({author, log_id, seq}, :entry, :write, meat <> sig)
-    retrieve(author, seq, {:entry, log_id, true})
+    entry = meat <> sig
+    Baobab.manage_content_store({author, log_id, seq}, {:both, :write, {entry, payload}})
+    (entry <> payload) |> from_binary(false)
   end
 
   @doc false
@@ -61,7 +61,7 @@ defmodule Baobab.Entry do
         } = entry,
         false
       ) do
-    case handle_seq_file({author, log_id, seq}, :entry, :exists) do
+    case Baobab.manage_content_store({author, log_id, seq}, {:entry, :exists}) do
       false -> store(entry, true)
       true -> entry
     end
@@ -81,7 +81,7 @@ defmodule Baobab.Entry do
         sig: sig,
         size: size
       } ->
-        handle_seq_file({author, log_id, seq}, :payload, :write, payload)
+        Baobab.manage_content_store({author, log_id, seq}, {:payload, :write, payload})
 
         contents =
           tag <>
@@ -89,7 +89,7 @@ defmodule Baobab.Entry do
             Varu64.encode(log_id) <>
             Varu64.encode(seq) <> option(ll) <> option(bl) <> Varu64.encode(size) <> ph <> sig
 
-        handle_seq_file({author, log_id, seq}, :entry, :write, contents)
+        Baobab.manage_content_store({author, log_id, seq}, {:entry, :write, contents})
         entry
 
       error ->
@@ -105,7 +105,7 @@ defmodule Baobab.Entry do
   @doc false
   def delete(author, seq, log_id) do
     entry_id = {author, log_id, seq}
-    handle_seq_file(entry_id, :entry, :delete)
+    Baobab.manage_content_store(entry_id, {:entry, :delete})
   end
 
   @doc false
@@ -113,8 +113,7 @@ defmodule Baobab.Entry do
   def retrieve(author, seq, {:binary, log_id, false}) do
     entry_id = {author, log_id, seq}
 
-    case {handle_seq_file(entry_id, :entry, :contents),
-          handle_seq_file(entry_id, :payload, :contents)} do
+    case Baobab.manage_content_store(entry_id, {:both, :contents}) do
       {:error, _} -> :error
       {_, :error} -> :error
       {entry, payload} -> entry <> payload
@@ -126,18 +125,18 @@ defmodule Baobab.Entry do
   # :binary validated
   def retrieve(author, seq, {fmt, log_id, validate}) do
     entry_id = {author, log_id, seq}
+    binary = Baobab.manage_content_store(entry_id, {:entry, :contents})
 
-    case {entry_id |> handle_seq_file(:entry, :contents) |> from_binary(validate), fmt} do
+    case {from_binary(binary, validate), fmt} do
       {:error, _} ->
-        handle_seq_file(entry_id, :payload, :delete)
-        handle_seq_file(entry_id, :entry, :delete)
+        Baobab.manage_content_store(entry_id, {:entry, :delete})
         :error
 
       {entry, :entry} ->
         entry
 
       {_, :binary} ->
-        retrieve(author, seq, {:binary, log_id, false})
+        binary
     end
   end
 
@@ -202,28 +201,14 @@ defmodule Baobab.Entry do
   # If we only got the `entry` portion, assume we might have it on disk
   # The `:error` in the struct can act at a signal that we don't
   defp add_payload(%Baobab.Entry{author: author, log_id: log_id, seqnum: seqnum} = map, "") do
-    Map.put(map, :payload, handle_seq_file({author, log_id, seqnum}, :payload, :contents))
+    Map.put(
+      map,
+      :payload,
+      Baobab.manage_content_store({author, log_id, seqnum}, {:payload, :contents})
+    )
   end
 
   defp add_payload(map, payload) do
     Map.put(map, :payload, payload)
-  end
-
-  @doc false
-  def handle_seq_file({author, log_id, seq}, name, how, content \\ nil) do
-    key = {author |> Baobab.b62identity(), log_id, seq}
-    curr = Baobab.spool(:content, :get, key)
-
-    case {how, curr} do
-      {:delete, nil} -> :ok
-      {:delete, _} -> Baobab.spool(:content, :delete, key)
-      {:contents, %{^name => c}} -> c
-      {:hash, %{^name => c}} -> YAMFhash.create(c, 0)
-      {:write, nil} -> Baobab.spool(:content, :put, {key, %{name => content}})
-      {:write, val} -> Baobab.spool(:content, :put, {key, Map.merge(val, %{name => content})})
-      {:exists, nil} -> false
-      {:exists, _} -> true
-      {_, _} -> :error
-    end
   end
 end
