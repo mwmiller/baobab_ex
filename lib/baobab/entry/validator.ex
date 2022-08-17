@@ -79,14 +79,33 @@ defmodule Baobab.Entry.Validator do
   """
   @spec validate_sig(%Baobab.Entry{}) :: :ok | {:error, String.t()}
   def validate_sig(%Baobab.Entry{
+        tag: tag,
         sig: sig,
         author: author,
         seqnum: seq,
-        log_id: log_id
+        size: size,
+        payload_hash: payload_hash,
+        log_id: log_id,
+        lipmaalink: lipmaa,
+        backlink: back
       }) do
-    wsig = Baobab.Entry.file({author, log_id, seq}, :contents)
+    head = tag <> author <> Varu64.encode(log_id) <> Varu64.encode(seq)
 
-    case Ed25519.valid_signature?(sig, :binary.part(wsig, {0, byte_size(wsig) - 64}), author) do
+    ll =
+      case lipmaa do
+        nil -> <<>>
+        val -> val
+      end
+
+    bl =
+      case back do
+        nil -> <<>>
+        val -> val
+      end
+
+    tail = Varu64.encode(size) <> payload_hash
+
+    case Ed25519.valid_signature?(sig, head <> ll <> bl <> tail, author) do
       true -> :ok
       false -> {:error, "Invalid signature"}
     end
@@ -123,7 +142,7 @@ defmodule Baobab.Entry.Validator do
         {:error, "Invalid lipmaa link when matches backlink"}
 
       {_, n, ll} ->
-        case Baobab.Entry.file({author, log_id, n}, :contents) do
+        case Baobab.Entry.handle_seq_file({author, log_id, n}, :entry, :contents) do
           :error ->
             {:error, "Missing lipmaalink entry for verificaton"}
 
@@ -144,7 +163,7 @@ defmodule Baobab.Entry.Validator do
   def validate_backlink(%Baobab.Entry{backlink: nil}), do: {:error, "Missing required backlink"}
 
   def validate_backlink(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, backlink: bl}) do
-    case Baobab.Entry.file({author, log_id, seq - 1}, :contents) do
+    case Baobab.Entry.handle_seq_file({author, log_id, seq - 1}, :entry, :contents) do
       # We don't have it so we cannot check it.  We'll say it's OK
       # This is required for partial replication to be meaningful.
       # I am sure I will come to regret this post-haste

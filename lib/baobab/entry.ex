@@ -33,13 +33,13 @@ defmodule Baobab.Entry do
     ll =
       case Lipmaa.linkseq(seq) do
         ^prev -> <<>>
-        n -> file({author, log_id, n}, :hash)
+        n -> handle_seq_file({author, log_id, n}, :entry, :hash)
       end
 
     bl =
       case prev do
         0 -> <<>>
-        n -> file({author, log_id, n}, :hash)
+        n -> handle_seq_file({author, log_id, n}, :entry, :hash)
       end
 
     tail = Varu64.encode(byte_size(payload)) <> YAMFhash.create(payload, 0)
@@ -51,6 +51,8 @@ defmodule Baobab.Entry do
   end
 
   @doc false
+  def store(entry, replace)
+
   def store(
         %Baobab.Entry{
           author: author,
@@ -65,32 +67,34 @@ defmodule Baobab.Entry do
     end
   end
 
-  def store(
-        %Baobab.Entry{
-          tag: tag,
-          author: author,
-          log_id: log_id,
-          seqnum: seq,
-          lipmaalink: ll,
-          backlink: bl,
-          payload: payload,
-          payload_hash: ph,
-          sig: sig,
-          size: size
-        },
-        true
-      ) do
-    handle_seq_file({author, log_id, seq}, :payload, :write, payload)
+  def store(%Baobab.Entry{} = entry, true) do
+    case Baobab.Entry.Validator.validate(entry) do
+      %Baobab.Entry{
+        tag: tag,
+        author: author,
+        log_id: log_id,
+        seqnum: seq,
+        lipmaalink: ll,
+        backlink: bl,
+        payload: payload,
+        payload_hash: ph,
+        sig: sig,
+        size: size
+      } ->
+        handle_seq_file({author, log_id, seq}, :payload, :write, payload)
 
-    contents =
-      tag <>
-        author <>
-        Varu64.encode(log_id) <>
-        Varu64.encode(seq) <> option(ll) <> option(bl) <> Varu64.encode(size) <> ph <> sig
+        contents =
+          tag <>
+            author <>
+            Varu64.encode(log_id) <>
+            Varu64.encode(seq) <> option(ll) <> option(bl) <> Varu64.encode(size) <> ph <> sig
 
-    handle_seq_file({author, log_id, seq}, :entry, :write, contents)
+        handle_seq_file({author, log_id, seq}, :entry, :write, contents)
+        entry
 
-    retrieve(author, seq, {:entry, log_id, true})
+      error ->
+        error
+    end
   end
 
   def store(_, _), do: {:error, "Attempt to store non-Baobab.Entry"}
@@ -123,7 +127,7 @@ defmodule Baobab.Entry do
   def retrieve(author, seq, {fmt, log_id, validate}) do
     entry_id = {author, log_id, seq}
 
-    case {entry_id |> file(:contents) |> from_binary(validate), fmt} do
+    case {entry_id |> handle_seq_file(:entry, :contents) |> from_binary(validate), fmt} do
       {:error, _} ->
         handle_seq_file(entry_id, :payload, :delete)
         handle_seq_file(entry_id, :entry, :delete)
@@ -198,7 +202,7 @@ defmodule Baobab.Entry do
   # If we only got the `entry` portion, assume we might have it on disk
   # The `:error` in the struct can act at a signal that we don't
   defp add_payload(%Baobab.Entry{author: author, log_id: log_id, seqnum: seqnum} = map, "") do
-    Map.put(map, :payload, payload_file({author, log_id, seqnum}, :contents))
+    Map.put(map, :payload, handle_seq_file({author, log_id, seqnum}, :payload, :contents))
   end
 
   defp add_payload(map, payload) do
@@ -206,13 +210,7 @@ defmodule Baobab.Entry do
   end
 
   @doc false
-  def file(entry_id, which),
-    do: handle_seq_file(entry_id, :entry, which)
-
-  defp payload_file(entry_id, which),
-    do: handle_seq_file(entry_id, :payload, which)
-
-  defp handle_seq_file({author, log_id, seq}, name, how, content \\ nil) do
+  def handle_seq_file({author, log_id, seq}, name, how, content \\ nil) do
     key = {author |> Baobab.b62identity(), log_id, seq}
     curr = Baobab.spool(:content, :get, key)
 
