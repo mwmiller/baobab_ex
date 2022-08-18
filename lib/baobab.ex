@@ -351,7 +351,10 @@ defmodule Baobab do
           spool_act(:content, :delete, key)
 
         {:contents, nil} ->
-          :error
+          case name do
+            :both -> {:error, :error}
+            _ -> :error
+          end
 
         {:contents, map} ->
           case name do
