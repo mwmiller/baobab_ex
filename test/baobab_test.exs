@@ -64,6 +64,7 @@ defmodule BaobabTest do
     assert Baobab.max_seqnum("testy", log_id: 1) == 1
 
     assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()
+    assert Baobab.log_range(b62author, {2, 14}) |> length() == 5
 
     assert [
              {:ok, 2},
@@ -79,6 +80,8 @@ defmodule BaobabTest do
            ] = Baobab.compact("testy")
 
     assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()
+
+    assert Baobab.log_range(b62author, {2, 14}) |> length() == 3
   end
 
   test "errors or not" do

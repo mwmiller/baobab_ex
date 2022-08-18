@@ -105,7 +105,6 @@ defmodule Baobab do
 
   @doc """
   Retrieve an author log at a particular sequence number.
-
   Includes the available certificate pool for its verification.
   """
   def log_at(author, seq, options \\ []) do
@@ -114,6 +113,28 @@ defmodule Baobab do
 
     certificate_pool(ak, seq, log_id)
     |> Enum.reverse()
+    |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
+  end
+
+  @doc """
+  Retrieve an author log over a specified range: `{first, last}`.
+
+  Up to the limit of the stored info, a minimal chain between `first` and `last`
+  is provided.
+  """
+  def log_range(author, range, options \\ [])
+
+  def log_range(_, {first, last}, _) when first < 2 or last < first,
+    do: {:error, "Improper range specification"}
+
+  def log_range(author, {first, last}, options) do
+    ak = author |> b62identity
+    {_, log_id, _} = opts = options |> optvals([:format, :log_id, :revalidate])
+    early = certificate_pool(ak, first, log_id) |> MapSet.new()
+    late = certificate_pool(ak, last, log_id) |> MapSet.new()
+
+    MapSet.union(early, late)
+    |> Enum.reject(fn i -> i < first or i > last end)
     |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
   end
 
@@ -166,7 +187,12 @@ defmodule Baobab do
   @doc false
   def certificate_pool(author, seq, log_id) do
     max = max_seqnum(author, log_id: log_id)
-    seq |> Lipmaa.cert_pool() |> Enum.reject(fn n -> n > max end)
+
+    seq
+    |> Lipmaa.cert_pool()
+    |> Enum.reject(fn n ->
+      n > max or not manage_content_store({author, log_id, seq}, {:entry, :exists})
+    end)
   end
 
   @doc """
