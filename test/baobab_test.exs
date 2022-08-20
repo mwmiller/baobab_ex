@@ -88,13 +88,13 @@ defmodule BaobabTest do
     assert :error = Baobab.identity_key("newb", :secret)
     assert :error = Baobab.identity_key("newb", :public)
 
+    assert {:error, "Unknown identity: ~short"} = Baobab.b62identity("~short")
+
     assert [{:error, "Import requires a list of Baobab.Entry structs"}] = Baobab.import("")
     assert [{:error, "Truncated binary cannot be reified"}] = Baobab.import([""])
 
-    assert_raise RuntimeError, fn -> Baobab.log_at("newb", 5) end
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF", 5)
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF0123456789A", 5)
-    assert_raise RuntimeError, fn -> Baobab.log_at("0123456789ABCDEF0123456789ABCDEF0123", 5) end
   end
 
   test "purgeitory" do

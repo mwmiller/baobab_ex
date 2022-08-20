@@ -20,6 +20,7 @@ defmodule Baobab do
   - `revalidate`: confirm the store contents are unchanged, default: `false`
   - `replace`: rewrite log contents even if it exists, default: `false`
   """
+  @defaults %{format: :entry, log_id: 0, revalidate: false, replace: false}
 
   BaseX.prepare_module(
     "Base62",
@@ -27,14 +28,34 @@ defmodule Baobab do
     32
   )
 
-  @defaults %{format: :entry, log_id: 0, revalidate: false, replace: false}
+  @doc """
+  Resolve an identity to its Base62 representation
 
-  @doc false
-  def optvals(opts, keys), do: optvals(opts, keys, [])
-  def optvals(_, [], acc), do: Enum.reverse(acc) |> List.to_tuple()
+  Attempts to resolve `~short` using stored logs
+  """
+  # Looks like a short base62
+  def b62identity(identity)
+  def b62identity(id) when not is_binary(id), do: {:error, "Unresolvable identity"}
 
-  def optvals(opts, [k | rest], acc),
-    do: optvals(opts, rest, [Keyword.get(opts, k, @defaults[k]) | acc])
+  def b62identity(<<"~", short::binary>>) do
+    case Enum.filter(Baobab.stored_info(), fn {a, _, _} -> String.starts_with?(a, short) end) do
+      [] -> {:error, "Unknown identity: ~" <> short}
+      [{id, _, _}] -> id
+      _ -> {:error, "Ambiguous identity: ~" <> short}
+    end
+  end
+
+  # Looks like a base62-encoded key
+  def b62identity(identity) when byte_size(identity) == 43, do: identity
+  # Looks like a proper key
+  def b62identity(identity) when byte_size(identity) == 32, do: BaseX.Base62.encode(identity)
+  # I guess it's a stored identity?
+  def b62identity(identity) do
+    case identity_key(identity, :public) do
+      :error -> {:error, "Unknown identity"}
+      key -> BaseX.Base62.encode(key)
+    end
+  end
 
   @doc """
   Create and store a new log entry for a stored identity
@@ -397,18 +418,10 @@ defmodule Baobab do
     Path.join([dir, file]) |> to_charlist
   end
 
-  @doc """
-  Resolve an identity to its Base62 representation
-  """
-  # Looks like a base62-encoded key
-  def b62identity(author) when byte_size(author) == 43, do: author
-  # Looks like a proper key
-  def b62identity(author) when byte_size(author) == 32, do: BaseX.Base62.encode(author)
-  # I guess it's a stored identity?
-  def b62identity(author) do
-    case identity_key(author, :public) do
-      :error -> raise "Cannot resolve author: " <> author
-      key -> BaseX.Base62.encode(key)
-    end
-  end
+  @doc false
+  def optvals(opts, keys), do: optvals(opts, keys, [])
+  def optvals(_, [], acc), do: Enum.reverse(acc) |> List.to_tuple()
+
+  def optvals(opts, [k | rest], acc),
+    do: optvals(opts, rest, [Keyword.get(opts, k, @defaults[k]) | acc])
 end
