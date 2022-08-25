@@ -40,6 +40,9 @@ defmodule BaobabTest do
     other_root = Baobab.append_log("A whole new log!", "testy", log_id: 1)
     assert %Baobab.Entry{seqnum: 1, log_id: 1} = other_root
 
+    <<short::binary-size(5), _::binary>> = b62author
+    assert b62author = Baobab.b62identity("~" <> short)
+
     assert Baobab.full_log(b62author) |> Enum.count() == 2
     assert Baobab.full_log(b62author, log_id: 1) == [other_root]
 

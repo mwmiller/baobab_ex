@@ -38,9 +38,9 @@ defmodule Baobab do
   def b62identity(id) when not is_binary(id), do: {:error, "Unresolvable identity"}
 
   def b62identity(<<"~", short::binary>>) do
-    case Enum.filter(Baobab.stored_info(), fn {a, _, _} -> String.starts_with?(a, short) end) do
+    case Enum.filter(stored_identities(), fn a -> String.starts_with?(a, short) end) do
       [] -> {:error, "Unknown identity: ~" <> short}
-      [{id, _, _}] -> id
+      [id] -> id
       _ -> {:error, "Ambiguous identity: ~" <> short}
     end
   end
@@ -55,6 +55,10 @@ defmodule Baobab do
       :error -> {:error, "Unknown identity"}
       key -> BaseX.Base62.encode(key)
     end
+  end
+
+  defp stored_identities() do
+    stored_info() |> Enum.map(fn {a, _, _} -> a end) |> Enum.uniq()
   end
 
   @doc """
