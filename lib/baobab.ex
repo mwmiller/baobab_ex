@@ -120,23 +120,22 @@ defmodule Baobab do
   end
 
   @doc """
-  Retrieve the latest entry.
-
-  Includes the available certificate pool for its verification.
-  """
-  def latest_log(author, options \\ []) do
-    author |> b62identity |> log_at(max_seqnum(author, options), options)
-  end
-
-  @doc """
   Retrieve an author log at a particular sequence number.
   Includes the available certificate pool for its verification.
+
+  Using `:max` as the sequence number will use the latest
   """
-  def log_at(author, seq, options \\ []) do
+  def log_at(author, seqnum, options \\ []) do
+    which =
+      case seqnum do
+        :max -> max_seqnum(author, options)
+        n -> n
+      end
+
     ak = author |> b62identity
     {_, log_id, _} = opts = options |> optvals([:format, :log_id, :revalidate])
 
-    certificate_pool(ak, seq, log_id)
+    certificate_pool(ak, which, log_id)
     |> Enum.reverse()
     |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
   end
@@ -232,7 +231,7 @@ defmodule Baobab do
   end
 
   @doc """
-  Retrieve the list of  sequence numbers on a particular log identified by the
+  Retrieve the list of sequence numbers on a particular log identified by the
   author key and log number
   """
   def all_seqnum(author, options \\ []) do
@@ -247,14 +246,21 @@ defmodule Baobab do
   end
 
   @doc """
-  Retrieve the latest entry on a particular log identified by the
-  author key and log number
-  """
-  def max_entry(author, options \\ [])
+  Retreive a paticular entry by author and sequence number.
 
-  def max_entry(author, options) do
+  `:max` for the sequence number retrieves the latest known entry
+  """
+  def log_entry(author, seqnum, options \\ [])
+
+  def log_entry(author, seqnum, options) do
+    which =
+      case seqnum do
+        :max -> max_seqnum(author, options)
+        n -> n
+      end
+
     opts = options |> optvals([:format, :log_id, :revalidate])
-    author |> b62identity |> Baobab.Entry.retrieve(max_seqnum(author, options), opts)
+    author |> b62identity |> Baobab.Entry.retrieve(which, opts)
   end
 
   @doc """

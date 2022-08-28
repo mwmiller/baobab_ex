@@ -18,8 +18,8 @@ defmodule BaobabTest do
     assert %Baobab.Entry{seqnum: 1, log_id: 0, size: 33, tag: <<0>>} = local_entry
     author = local_entry.author
 
-    assert local_entry == Baobab.max_entry(author)
-    assert remote_entry == Baobab.max_entry(author, format: :binary)
+    assert local_entry == Baobab.log_entry(author, :max)
+    assert remote_entry == Baobab.log_entry(author, :max, format: :binary)
     assert [{"7nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG", 0, 1}] = Baobab.stored_info()
   end
 
@@ -37,8 +37,11 @@ defmodule BaobabTest do
     assert %Baobab.Entry{seqnum: 2, log_id: 0} =
              Baobab.append_log("A second entry for testing", "testy")
 
+    assert root == Baobab.log_entry("testy", 1, revalidate: true)
+
     other_root = Baobab.append_log("A whole new log!", "testy", log_id: 1)
     assert %Baobab.Entry{seqnum: 1, log_id: 1} = other_root
+    assert other_root == Baobab.log_entry("testy", 1, log_id: 1)
 
     <<short::binary-size(5), _::binary>> = b62author
     assert b62author = Baobab.b62identity("~" <> short)
@@ -54,10 +57,11 @@ defmodule BaobabTest do
     author_key = Baobab.identity_key("testy", :public)
     partial = Baobab.log_at(b62author, 5, format: :binary)
     assert Enum.count(partial) == 8
-    latest = Baobab.latest_log(author_key, revalidate: true)
+    latest = Baobab.log_at(author_key, :max, revalidate: true)
     assert Enum.count(latest) == 4
     full = Baobab.full_log(author_key, log_id: 0)
     assert Enum.count(full) == 14
+    assert %Baobab.Entry{payload: "Entry: 6"} = Baobab.log_entry(author_key, 6)
 
     assert [^root | _] = Baobab.import(partial)
     assert [^root | _] = latest
