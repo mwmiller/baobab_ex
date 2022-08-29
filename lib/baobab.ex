@@ -333,6 +333,21 @@ defmodule Baobab do
     end
   end
 
+  @doc """
+  List all known identities with their base62 public key representation
+  """
+  @spec identities() :: [{String.t(), String.t()}]
+  def identities() do
+    :identity
+    |> spool(:foldl, fn item, acc ->
+      case item do
+        {a, {_, public}} -> [{a, b62identity(public)} | acc]
+        _ -> acc
+      end
+    end)
+    |> Enum.sort()
+  end
+
   @doc false
   defp spool(which, action, value \\ nil) do
     spool_store(which, :open)

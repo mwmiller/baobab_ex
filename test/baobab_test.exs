@@ -31,6 +31,8 @@ defmodule BaobabTest do
     # This test is a little on the nose, but meh.
     assert_raise CaseClauseError, fn -> Baobab.create_identity("testy_bad", "notakey") end
 
+    assert 2 == Enum.count(Baobab.identities())
+
     root = Baobab.append_log("An entry for testing", "testy")
     assert %Baobab.Entry{seqnum: 1, log_id: 0} = root
 
