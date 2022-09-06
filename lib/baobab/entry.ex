@@ -128,6 +128,9 @@ defmodule Baobab.Entry do
     binary = Baobab.manage_content_store(entry_id, {:entry, :contents})
 
     case {from_binary(binary, validate), fmt} do
+      {:error, :missing} ->
+        :error
+
       {:error, _} ->
         Baobab.manage_content_store(entry_id, {:entry, :delete})
         :error
@@ -141,6 +144,7 @@ defmodule Baobab.Entry do
   end
 
   @doc false
+  def from_binary(:error, _), do: {:error, :missing}
   def from_binary(bin, false), do: from_binary(bin)
 
   def from_binary(bin, true) do
