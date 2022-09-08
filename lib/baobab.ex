@@ -268,7 +268,6 @@ defmodule Baobab do
 
   An optional secret key to be associated with the identity may provided, either
   raw or base62 encoded. The public key will be derived therefrom.
-
   """
   def create_identity(identity, secret_key \\ nil) do
     # This is just unrolling how Ed25519 works
@@ -283,6 +282,12 @@ defmodule Baobab do
     spool(:identity, :put, {identity, pair})
     elem(pair, 1) |> b62identity
   end
+
+  @doc """
+  Drop a stored identity. `Baobab` will be unable to recover keys
+  (notably `:secret` keys) destroyed herewith.
+  """
+  def drop_identity(identity), do: spool(:identity, :delete, identity)
 
   @doc """
   A list of {author, log_id, max_seqnum} tuples in the configured store

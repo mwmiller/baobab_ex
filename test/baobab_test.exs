@@ -92,6 +92,9 @@ defmodule BaobabTest do
     assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()
 
     assert Baobab.log_range(b62author, {2, 14}) |> length() == 3
+
+    assert :ok == Baobab.drop_identity("testy")
+    assert :error == Baobab.identity_key("testy", :public)
   end
 
   test "errors or not" do
