@@ -284,6 +284,16 @@ defmodule Baobab do
   end
 
   @doc """
+  Rename an extant identity leaving its keys intact.
+  """
+  def rename_identity(identity, new_name) do
+    {sk, _} = spool(:identity, :get, identity)
+    spool(:identity, :delete, identity)
+    # We'll do the extra work to regen the public key
+    create_identity(new_name, sk)
+  end
+
+  @doc """
   Drop a stored identity. `Baobab` will be unable to recover keys
   (notably `:secret` keys) destroyed herewith.
   """

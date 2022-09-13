@@ -25,14 +25,6 @@ defmodule BaobabTest do
 
   test "local use" do
     b62author = Baobab.create_identity("testy")
-    sk = Baobab.identity_key("testy", :secret)
-    assert b62author == Baobab.create_identity("testy_dupe", sk)
-    assert b62author == Baobab.create_identity("testy_dupe", BaseX.Base62.encode(sk))
-    # This test is a little on the nose, but meh.
-    assert_raise CaseClauseError, fn -> Baobab.create_identity("testy_bad", "notakey") end
-
-    assert 2 == Enum.count(Baobab.identities())
-
     root = Baobab.append_log("An entry for testing", "testy")
     assert %Baobab.Entry{seqnum: 1, log_id: 0} = root
 
@@ -46,7 +38,7 @@ defmodule BaobabTest do
     assert other_root == Baobab.log_entry("testy", 1, log_id: 1)
 
     <<short::binary-size(5), _::binary>> = b62author
-    assert b62author = Baobab.b62identity("~" <> short)
+    assert b62author == Baobab.b62identity("~" <> short)
 
     assert Baobab.full_log(b62author) |> Enum.count() == 2
     assert Baobab.full_log(b62author, log_id: 1) == [other_root]
@@ -92,9 +84,25 @@ defmodule BaobabTest do
     assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()
 
     assert Baobab.log_range(b62author, {2, 14}) |> length() == 3
+  end
 
-    assert :ok == Baobab.drop_identity("testy")
-    assert :error == Baobab.identity_key("testy", :public)
+  test "identity management" do
+    b62id = Baobab.create_identity("first_id")
+    sk = Baobab.identity_key("first_id", :secret)
+    assert b62id == Baobab.create_identity("first_dupe", sk)
+    assert b62id == Baobab.create_identity("first_dupe", BaseX.Base62.encode(sk))
+    # This test is a little on the nose, but meh.
+    assert_raise CaseClauseError, fn -> Baobab.create_identity("bad_alias", "notakey") end
+
+    assert 2 == Enum.count(Baobab.identities())
+
+    assert b62id == Baobab.identity_key("first_dupe", :public) |> Baobab.b62identity()
+    assert b62id == Baobab.rename_identity("first_dupe", "final_id")
+    assert :error == Baobab.identity_key("first_dupe", :public)
+
+    assert :ok == Baobab.drop_identity("final_id")
+    assert :error == Baobab.identity_key("final_id", :public)
+    assert [{"first_id", _}] = Baobab.identities()
   end
 
   test "errors or not" do
