@@ -373,10 +373,29 @@ defmodule Baobab do
     |> Enum.sort()
   end
 
+  @doc """
+  Retrieve the current hash of the `:content` or `:identity` store.
+
+  No information should be gleaned from any particular hash beyond whether
+  the contents have changed since a previous check.
+  """
+  def current_hash(which) do
+    case spool(:status, :get, which) do
+      [{^which, hash}] -> hash
+      _ -> recompute_hash(which)
+    end
+  end
+
   @doc false
-  defp spool(which, action, value \\ nil) do
+  def spool(which, action, value \\ nil) do
     spool_store(which, :open)
     retval = spool_act(which, action, value)
+
+    case action in [:truncate, :delete, :put, :match_delete] do
+      true -> recompute_hash(which)
+      false -> :ok
+    end
+
     spool_store(which, :close)
     retval
   end
@@ -389,9 +408,9 @@ defmodule Baobab do
   end
 
   defp spool_act(which, :foldl, fun), do: :dets.foldl(fun, [], which)
+  defp spool_act(which, :truncate, _), do: :dets.delete_all_objects(which)
   defp spool_act(which, :delete, key), do: :dets.delete(which, key)
   defp spool_act(which, :put, kv), do: :dets.insert(which, kv)
-  defp spool_act(which, :truncate, _), do: :dets.delete_all_objects(which)
 
   defp spool_act(which, :match_delete, key_pattern),
     do: :dets.match_delete(which, {key_pattern, :_})
@@ -460,6 +479,25 @@ defmodule Baobab do
 
     spool_store(:content, :close)
     actval
+  end
+
+  defp recompute_hash(:status), do: "nahnah"
+
+  defp recompute_hash(which) do
+    stuff =
+      case which do
+        :content -> all_entries()
+        :identity -> identities()
+      end
+
+    hash =
+      stuff
+      |> :erlang.term_to_binary()
+      |> Blake2.hash2b(7)
+      |> BaseX.Base62.encode()
+
+    spool(:status, :put, {which, hash})
+    hash
   end
 
   defp proper_db_path(which) do

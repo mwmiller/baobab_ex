@@ -21,6 +21,8 @@ defmodule BaobabTest do
     assert local_entry == Baobab.log_entry(author, :max)
     assert remote_entry == Baobab.log_entry(author, :max, format: :binary)
     assert [{"7nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG", 0, 1}] = Baobab.stored_info()
+    assert "4XwOPI3gAo" = Baobab.current_hash(:content)
+    assert "1MxoSSY9hs" = Baobab.current_hash(:identity)
   end
 
   test "local use" do
