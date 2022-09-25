@@ -318,15 +318,25 @@ defmodule Baobab do
     stored_info(rest, a)
   end
 
-  defp logs do
+  @doc """
+  A list of all {author, log_id, seqnum} tuples in the configured store
+  """
+  def all_entries do
     :content
     |> spool(:foldl, fn item, acc ->
       case item do
-        {{a, l, _}, _} -> [{a, l} | acc]
+        {e, _} -> [e | acc]
         _ -> acc
       end
     end)
-    |> Enum.uniq()
+  end
+
+  defp logs do
+    all_entries()
+    |> Enum.reduce(MapSet.new(), fn {a, l, _}, c ->
+      MapSet.put(c, {a, l})
+    end)
+    |> MapSet.to_list()
   end
 
   @doc """

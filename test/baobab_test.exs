@@ -84,6 +84,7 @@ defmodule BaobabTest do
     assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()
 
     assert Baobab.log_range(b62author, {2, 14}) |> length() == 3
+    assert Baobab.all_entries() |> length() == 5
   end
 
   test "identity management" do
