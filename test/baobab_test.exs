@@ -3,11 +3,10 @@ defmodule BaobabTest do
   doctest Baobab
 
   setup do
-    File.mkdir_p(Application.fetch_env!(:baobab, :spool_dir) |> Path.expand())
+    spool = Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
+    File.mkdir_p(Path.join([spool, "default"]))
 
-    on_exit(fn ->
-      File.rm_rf(Application.fetch_env!(:baobab, :spool_dir) |> Path.expand())
-    end)
+    on_exit(fn -> File.rm_rf(spool) end)
   end
 
   test "import remote entry" do

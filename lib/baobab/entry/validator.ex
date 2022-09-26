@@ -3,17 +3,17 @@ defmodule Baobab.Entry.Validator do
   Validation of `Baobab.Entry` structs
   """
   @doc """
-  Validate a `Baobab.Entry` struct
+  Validate a `Baobab.Entry` struct relative to the provided clump_id
 
   Includes validation of its available certificate pool
   """
-  @spec validate(%Baobab.Entry{}) :: %Baobab.Entry{} | {:error, String.t()}
-  def validate(%Baobab.Entry{seqnum: seq, author: author, log_id: log_id} = entry) do
-    case validate_entry(entry) do
+  @spec validate(String.t(), %Baobab.Entry{}) :: %Baobab.Entry{} | {:error, String.t()}
+  def validate(clump_id, %Baobab.Entry{seqnum: seq, author: author, log_id: log_id} = entry) do
+    case validate_entry(clump_id, entry) do
       :ok ->
         case verify_chain(
-               Baobab.certificate_pool(author, seq, log_id),
-               {author, log_id},
+               Baobab.certificate_pool(author, seq, log_id, clump_id),
+               {clump_id, author, log_id},
                :ok
              ) do
           :ok -> entry
@@ -25,28 +25,28 @@ defmodule Baobab.Entry.Validator do
     end
   end
 
-  def validate(_), do: {:error, "Input is not a Baobab.Entry"}
+  def validate(_, _), do: {:error, "Input is not a Baobab.Entry"}
 
   defp verify_chain([], _log, answer), do: answer
   defp verify_chain(_links, _log, answer) when is_tuple(answer), do: answer
 
-  defp verify_chain([seq | rest], {author, log_id} = which, _answer) do
+  defp verify_chain([seq | rest], {clump_id, author, log_id} = which, _answer) do
     new_answer =
-      case Baobab.Entry.retrieve(author, seq, {:entry, log_id, false}) do
+      case Baobab.Entry.retrieve(author, seq, {:entry, log_id, false, clump_id}) do
         :error ->
           {:error, "Could not retrieve certificate chain seqnum: " <> Integer.to_string(seq)}
 
         link ->
-          validate_link(link)
+          validate_link(clump_id, link)
       end
 
     verify_chain(rest, which, new_answer)
   end
 
-  defp validate_link(entry) do
+  defp validate_link(clump_id, entry) do
     with :ok <- validate_sig(entry),
-         :ok <- validate_backlink(entry),
-         :ok <- validate_lipmaalink(entry) do
+         :ok <- validate_backlink(clump_id, entry),
+         :ok <- validate_lipmaalink(clump_id, entry) do
       :ok
     else
       error -> error
@@ -61,13 +61,15 @@ defmodule Baobab.Entry.Validator do
     - Payload hash
     - Backlink
     - Lipmaalink
+
+    Relative to the provided `clump_id`
   """
-  @spec validate_entry(%Baobab.Entry{}) :: :ok | {:error, String.t()}
-  def validate_entry(entry) do
+  @spec validate_entry(String.t(), %Baobab.Entry{}) :: :ok | {:error, String.t()}
+  def validate_entry(clump_id, entry) do
     with :ok <- validate_sig(entry),
          :ok <- validate_payload_hash(entry),
-         :ok <- validate_backlink(entry),
-         :ok <- validate_lipmaalink(entry) do
+         :ok <- validate_backlink(clump_id, entry),
+         :ok <- validate_lipmaalink(clump_id, entry) do
       :ok
     else
       error -> error
@@ -123,12 +125,12 @@ defmodule Baobab.Entry.Validator do
   end
 
   @doc """
-  Validate the `lipmaalink` field of a `Baobab.Entry`
+  Validate the `lipmaalink` field of a `Baobab.Entry` relatve to the provided clump_id
   """
-  @spec validate_lipmaalink(%Baobab.Entry{}) :: :ok | {:error, String.t()}
-  def validate_lipmaalink(%Baobab.Entry{seqnum: 1, lipmaalink: nil}), do: :ok
+  @spec validate_lipmaalink(String.t(), %Baobab.Entry{}) :: :ok | {:error, String.t()}
+  def validate_lipmaalink(_clump_id, %Baobab.Entry{seqnum: 1, lipmaalink: nil}), do: :ok
 
-  def validate_lipmaalink(%Baobab.Entry{
+  def validate_lipmaalink(clump_id, %Baobab.Entry{
         author: author,
         log_id: log_id,
         seqnum: seq,
@@ -142,7 +144,7 @@ defmodule Baobab.Entry.Validator do
         {:error, "Invalid lipmaa link when matches backlink"}
 
       {_, n, ll} ->
-        case Baobab.manage_content_store({author, log_id, n}, {:entry, :contents}) do
+        case Baobab.manage_content_store(clump_id, {author, log_id, n}, {:entry, :contents}) do
           :error ->
             {:error, "Missing lipmaalink entry for verificaton"}
 
@@ -156,14 +158,21 @@ defmodule Baobab.Entry.Validator do
   end
 
   @doc """
-  Validate the `backlink` field of a `Baobab.Entry`
+  Validate the `backlink` field of a `Baobab.Entry` relative to the provided clump
   """
-  @spec validate_backlink(%Baobab.Entry{}) :: :ok | {:error, String.t()}
-  def validate_backlink(%Baobab.Entry{seqnum: 1, backlink: nil}), do: :ok
-  def validate_backlink(%Baobab.Entry{backlink: nil}), do: {:error, "Missing required backlink"}
+  @spec validate_backlink(String.t(), %Baobab.Entry{}) :: :ok | {:error, String.t()}
+  def validate_backlink(_, %Baobab.Entry{seqnum: 1, backlink: nil}), do: :ok
 
-  def validate_backlink(%Baobab.Entry{author: author, log_id: log_id, seqnum: seq, backlink: bl}) do
-    case Baobab.manage_content_store({author, log_id, seq - 1}, {:entry, :contents}) do
+  def validate_backlink(_, %Baobab.Entry{backlink: nil}),
+    do: {:error, "Missing required backlink"}
+
+  def validate_backlink(clump_id, %Baobab.Entry{
+        author: author,
+        log_id: log_id,
+        seqnum: seq,
+        backlink: bl
+      }) do
+    case Baobab.manage_content_store(clump_id, {author, log_id, seq - 1}, {:entry, :contents}) do
       # We don't have it so we cannot check it.  We'll say it's OK
       # This is required for partial replication to be meaningful.
       # I am sure I will come to regret this post-haste
