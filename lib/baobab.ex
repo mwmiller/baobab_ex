@@ -191,7 +191,7 @@ defmodule Baobab do
       {author, n} -> spool(:content, clump_id, :match_delete, {author |> b62identity, n, :_})
     end
 
-    Baobab.stored_info()
+    Baobab.stored_info(clump_id)
   end
 
   @doc """
