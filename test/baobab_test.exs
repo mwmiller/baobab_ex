@@ -66,7 +66,7 @@ defmodule BaobabTest do
     assert Baobab.max_seqnum("testy", log_id: 1) == 1
 
     assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()
-    assert Baobab.log_range(b62author, {2, 14}) |> length() == 5
+    assert Baobab.log_range(b62author, {2, 14}) |> length() == 13
 
     assert [
              {:ok, 2},

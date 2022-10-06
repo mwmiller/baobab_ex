@@ -143,10 +143,7 @@ defmodule Baobab do
   end
 
   @doc """
-  Retrieve an author log over a specified range: `{first, last}`.
-
-  Up to the limit of the stored info, a minimal chain between `first` and `last`
-  is provided.
+  Retrieve all available author log entries over a specified range: `{first, last}`.
   """
   def log_range(author, range, options \\ [])
 
@@ -159,11 +156,10 @@ defmodule Baobab do
     {_, log_id, _, clump_id} =
       opts = options |> optvals([:format, :log_id, :revalidate, :clump_id])
 
-    early = certificate_pool(ak, first, log_id, clump_id) |> MapSet.new()
-    late = certificate_pool(ak, last, log_id, clump_id) |> MapSet.new()
-
-    MapSet.union(early, late)
-    |> Enum.reject(fn i -> i < first or i > last end)
+    first..last
+    |> Enum.filter(fn n ->
+      manage_content_store(clump_id, {author, log_id, n}, {:entry, :exists})
+    end)
     |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
   end
 
@@ -222,7 +218,7 @@ defmodule Baobab do
     seq
     |> Lipmaa.cert_pool()
     |> Enum.reject(fn n ->
-      n > max or not manage_content_store(clump_id, {author, log_id, seq}, {:entry, :exists})
+      n > max or not manage_content_store(clump_id, {author, log_id, n}, {:entry, :exists})
     end)
   end
 
