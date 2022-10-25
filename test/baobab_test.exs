@@ -81,7 +81,7 @@ defmodule BaobabTest do
              {:ok, 12}
            ] = Baobab.compact("testy")
 
-    assert {:error, :missing} = Baobab.log_entry("testy", 2)
+    assert :error = Baobab.log_entry("testy", 2)
     assert [{^b62author, 0, 14}, {^b62author, 1, 1}] = Baobab.stored_info()
 
     assert Baobab.log_range(b62author, {2, 14}) |> length() == 3
@@ -113,8 +113,7 @@ defmodule BaobabTest do
 
     assert {:error, "Unknown identity: ~short"} = Baobab.b62identity("~short")
 
-    assert [{:error, "Import requires a list of Baobab.Entry structs"}] = Baobab.import("")
-    assert [{:error, "Truncated binary cannot be reified"}] = Baobab.import([""])
+    assert [{:error, "Import requires a list of binaries"}] = Baobab.import("")
 
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF", 5)
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF0123456789A", 5)

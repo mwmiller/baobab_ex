@@ -53,7 +53,8 @@ defmodule Baobab.Entry do
       {:both, :write, {entry, payload}}
     )
 
-    (entry <> payload) |> from_binary({false, clump_id})
+    {final, ""} = (entry <> payload) |> from_binary({false, clump_id})
+    final
   end
 
   @doc false
@@ -133,9 +134,10 @@ defmodule Baobab.Entry do
   def retrieve(author, seq, {fmt, log_id, validate, clump_id}) do
     entry_id = {author, log_id, seq}
     binary = Baobab.manage_content_store(clump_id, entry_id, {:entry, :contents})
+    res = from_binaries(binary, validate, clump_id) |> hd
 
-    case {from_binary(binary, validate, clump_id), fmt} do
-      {:error, :missing} ->
+    case {res, fmt} do
+      {{:error, :missing}, _} ->
         :error
 
       {:error, _} ->
@@ -151,18 +153,23 @@ defmodule Baobab.Entry do
   end
 
   @doc false
-  def from_binary(:error, _, _), do: {:error, :missing}
-  def from_binary(bin, false, clump_id), do: from_binary(bin, clump_id)
+  def from_binaries(stuff, validate, clump_id, acc \\ [])
+  def from_binaries(:error, _, _, _), do: [{:error, :missing}]
+  def from_binaries("", _, _, acc), do: Enum.reverse(acc)
 
-  def from_binary(bin, true, clump_id) do
-    case bin |> from_binary(clump_id) do
-      %Baobab.Entry{} = entry -> Baobab.Entry.Validator.validate(clump_id, entry)
-      _ -> {:error, "Could not create Entry from binary"}
+  def from_binaries(bin, validate, clump_id, acc) do
+    case {from_binary(bin, clump_id), validate} do
+      {{%Baobab.Entry{} = entry, rest}, true} ->
+        Baobab.Entry.Validator.validate(clump_id, entry)
+        from_binaries(rest, true, clump_id, [entry | acc])
+
+      {{%Baobab.Entry{} = entry, rest}, false} ->
+        from_binaries(rest, true, clump_id, [entry | acc])
+
+      _ ->
+        [{:error, "Could not reify fully"}]
     end
   end
-
-  defp from_binary(bin, _) when byte_size(bin) < 33,
-    do: {:error, "Truncated binary cannot be reified"}
 
   defp from_binary(<<tag::binary-size(1), author::binary-size(32), rest::binary>>, clump_id) do
     add_logid(%Baobab.Entry{tag: tag, author: author}, rest, clump_id)
@@ -217,14 +224,15 @@ defmodule Baobab.Entry do
          "",
          clump_id
        ) do
-    Map.put(
-      map,
-      :payload,
-      Baobab.manage_content_store(clump_id, {author, log_id, seqnum}, {:payload, :contents})
-    )
+    {Map.put(
+       map,
+       :payload,
+       Baobab.manage_content_store(clump_id, {author, log_id, seqnum}, {:payload, :contents})
+     ), ""}
   end
 
-  defp add_payload(map, payload, _) do
-    Map.put(map, :payload, payload)
+  defp add_payload(%Baobab.Entry{size: pbytes} = map, full, _) do
+    <<payload::binary-size(pbytes), rest::binary>> = full
+    {Map.put(map, :payload, payload), rest}
   end
 end

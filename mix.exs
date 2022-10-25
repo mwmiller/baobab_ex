@@ -31,6 +31,7 @@ defmodule Baobab.MixProject do
       {:yamfhash, ">= 1.0.0"},
       # Not written by me
       {:enacl, "~> 1.2"},
+      {:jason, "~> 1.4"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
