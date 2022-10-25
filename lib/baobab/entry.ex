@@ -24,7 +24,7 @@ defmodule Baobab.Entry do
   @doc false
   def create(payload, clump_id, identity, log_id) do
     author = Baobab.identity_key(identity, :public)
-    signer = Baobab.identity_key(identity, :secret)
+    signer = Baobab.identity_key(identity, :signing)
     prev = Baobab.max_seqnum(author, log_id: log_id, clump_id: clump_id)
     seq = prev + 1
     head = <<0>> <> author <> Varu64.encode(log_id) <> Varu64.encode(seq)
@@ -44,7 +44,7 @@ defmodule Baobab.Entry do
     tail = Varu64.encode(byte_size(payload)) <> YAMFhash.create(payload, 0)
 
     meat = head <> ll <> bl <> tail
-    sig = Ed25519.signature(meat, signer, author)
+    sig = :enacl.sign_detached(meat, signer)
     entry = meat <> sig
 
     Baobab.manage_content_store(

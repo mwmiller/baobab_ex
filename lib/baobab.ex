@@ -281,6 +281,9 @@ defmodule Baobab do
         <<b62::binary-size(43)>> -> BaseX.Base62.decode(b62)
       end
 
+    # Despite appearances, enacl does not derive public
+    # from secret.  Instead it counts on the fact that the
+    # two are concatenated. So this stays.
     pair = {secret, Ed25519.derive_public_key(secret)}
     ident_store(:put, {identity, pair})
     elem(pair, 1) |> b62identity
@@ -357,6 +360,7 @@ defmodule Baobab do
         case which do
           :secret -> secret
           :public -> public
+          :signing -> secret <> public
           _ -> :error
         end
 

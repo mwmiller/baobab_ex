@@ -107,7 +107,7 @@ defmodule Baobab.Entry.Validator do
 
     tail = Varu64.encode(size) <> payload_hash
 
-    case Ed25519.valid_signature?(sig, head <> ll <> bl <> tail, author) do
+    case :enacl.sign_verify_detached(sig, head <> ll <> bl <> tail, author) do
       true -> :ok
       false -> {:error, "Invalid signature"}
     end
