@@ -94,28 +94,6 @@ defmodule Baobab do
   end
 
   @doc """
-  Import and store a list of log entries from their binary format.
-  """
-  @spec import([binary]) :: [%Baobab.Entry{} | {:error, String.t()}]
-  def import(binaries, options \\ [])
-
-  def import(binaries, options) when is_list(binaries) do
-    do_import(binaries, options |> optvals([:replace, :clump_id]), [])
-  end
-
-  def import(_, _), do: [{:error, "Import requires a list of binaries"}]
-  defp do_import([], _, acc), do: acc
-
-  defp do_import([binary | rest], {overwrite, clump_id} = opts, acc) do
-    result =
-      binary
-      |> Baobab.Entry.from_binaries(true, clump_id)
-      |> Enum.map(fn e -> Baobab.Entry.store(e, clump_id, overwrite) end)
-
-    do_import(rest, opts, acc ++ result)
-  end
-
-  @doc """
   Retrieve an author log at a particular sequence number.
   Includes the available certificate pool for its verification.
 
@@ -405,129 +383,8 @@ defmodule Baobab do
 
     Path.join([spool, "*/content.dets"])
     |> Path.wildcard()
-    |> Enum.map(fn p -> clump_from_path(p) end)
+    |> Enum.map(fn p -> Baobab.Interchange.clump_from_path(p) end)
     |> Enum.sort()
-  end
-
-  @doc """
-  Import a bamboo store
-
-  At present this only handles an exported directory as produced by `store_export/1`
-  """
-  def store_import(path) do
-    # Right now we just mirror the export assuming everything
-    # is "in its place".  Eventually we should have some switches
-    # to allow partial imports.. and from other sources
-    top = path |> Path.expand()
-
-    case Path.wildcard(Path.join([top, "identities/*.keyfile.json"])) do
-      [] -> notours()
-      ids -> import_identities(ids)
-    end
-
-    case Path.wildcard(Path.join([top, "content/*/*.bamboo.log"])) do
-      [] -> notours()
-      logs -> import_logs(logs)
-    end
-  end
-
-  defp clump_from_path(path) do
-    [_, clump | _] = path |> Path.split() |> Enum.reverse()
-    clump
-  end
-
-  defp notours(), do: raise("Not a Baobab export structure")
-
-  defp import_logs([]), do: :ok
-
-  defp import_logs([bamboo_file | rest]) do
-    # The logs themselves contain all of the info for their structure
-    # except for the `clump_id` so we'll need that
-    cid = clump_from_path(bamboo_file)
-
-    bamboo_file
-    |> File.read!()
-    |> then(fn contents -> Baobab.import([contents], replace: false, clump_id: cid) end)
-
-    import_logs(rest)
-  end
-
-  defp import_identities([]), do: :ok
-
-  defp import_identities([json_file | rest]) do
-    case json_file |> File.read!() |> Jason.decode!() do
-      # This is surprisingly liberal given our stance on current importing
-      %{"identity" => id, "secret_key" => sk, "public_key" => pk} ->
-        case create_identity(id, sk) do
-          ^pk -> :ok
-          _ -> notours()
-        end
-
-      _ ->
-        notours()
-    end
-
-    import_identities(rest)
-  end
-
-  @doc """
-  Export full store contents to the provided directory
-  """
-  def store_export(path) do
-    where = Path.expand(path)
-    id_path = Path.join([where, "identities"])
-    :ok = File.mkdir_p(id_path)
-    :ok = File.chmod(id_path, 0o700)
-    export_identities(identities(), id_path)
-    bb_path = Path.join(where, "content")
-    :ok = File.mkdir_p(bb_path)
-    :ok = File.chmod(bb_path, 0o700)
-    export_clumps(Baobab.clumps(), bb_path)
-    where
-  end
-
-  defp export_clumps([], _), do: :ok
-
-  defp export_clumps([cid | rest], path) do
-    export_clump(cid, path)
-    export_clumps(rest, path)
-  end
-
-  defp export_clump(cid, path) do
-    dir = Path.join(path, cid)
-    :ok = File.mkdir_p(dir)
-    export_logs(Baobab.stored_info(cid), cid, dir)
-  end
-
-  defp export_logs([], _, _), do: :ol
-
-  defp export_logs([{a, l, _} | rest], cid, dir) do
-    file = Path.join([dir, a <> "_" <> Integer.to_string(l) <> ".bamboo.log"])
-    log = Baobab.full_log(a, log_id: l, clump_id: cid, format: :binary) |> Enum.join("")
-    :ok = File.write(file, log)
-    :ok = File.chmod(file, 0o700)
-    export_logs(rest, cid, dir)
-  end
-
-  defp export_identities([], _), do: :ok
-
-  defp export_identities([{i, pk} | rest], path) do
-    file = Path.join(path, i <> ".keyfile.json")
-
-    {:ok, json} =
-      %{
-        "source" => "baobab",
-        "key_encoding" => "base62",
-        "key_type" => "ed25519",
-        "identity" => i,
-        "public_key" => pk,
-        "secret_key" => Baobab.identity_key(i, :secret) |> BaseX.Base62.encode()
-      }
-      |> Jason.encode()
-
-    :ok = File.write(file, json)
-    :ok = File.chmod(file, 0o600)
-    export_identities(rest, path)
   end
 
   @doc false

@@ -2,17 +2,23 @@ defmodule BaobabTest do
   use ExUnit.Case
   doctest Baobab
 
+  # I do not see the case for a config variable for this
+  @export_dir "/tmp/bao_text_export"
+
   setup do
     spool = Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
     File.mkdir_p(Path.join([spool, "default"]))
 
-    on_exit(fn -> File.rm_rf(spool) end)
+    on_exit(fn ->
+      File.rm_rf(spool)
+      File.rm_rf(@export_dir)
+    end)
   end
 
-  test "import remote entry" do
+  test "import remote" do
     remote_entry = File.read!("test/remote_entry")
 
-    [local_entry | _] = Baobab.import([remote_entry])
+    [local_entry | _] = Baobab.Interchange.import_binaries(remote_entry)
 
     assert %Baobab.Entry{seqnum: 1, log_id: 0, size: 33, tag: <<0>>} = local_entry
     author = local_entry.author
@@ -20,8 +26,22 @@ defmodule BaobabTest do
     assert local_entry == Baobab.log_entry(author, :max)
     assert remote_entry == Baobab.log_entry(author, :max, format: :binary)
     assert [{"7nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG", 0, 1}] = Baobab.stored_info()
-    assert "4XwOPI3gAo" = Baobab.current_hash(:content)
-    assert "1MxoSSY9hs" = Baobab.current_hash(:identity)
+    assert "4XwOPI3gAo" == Baobab.current_hash(:content)
+    assert "1MxoSSY9hs" == Baobab.current_hash(:identity)
+    assert ["default"] == Baobab.clumps()
+
+    # More interchange stuff might as well do it here
+    # We demand at least one identity, so...
+    Baobab.create_identity("rando")
+    idhash = Baobab.current_hash(:identity)
+    assert @export_dir == Baobab.Interchange.export_store(@export_dir)
+    assert [] == Baobab.purge(:all, log_id: :all)
+    refute "4XwOPI3gAo" == Baobab.current_hash(:content)
+    Baobab.drop_identity("rando")
+    assert "1MxoSSY9hs" == Baobab.current_hash(:identity)
+    assert :ok == Baobab.Interchange.import_store(@export_dir)
+    assert "4XwOPI3gAo" == Baobab.current_hash(:content)
+    assert idhash == Baobab.current_hash(:identity)
   end
 
   test "local use" do
@@ -58,7 +78,7 @@ defmodule BaobabTest do
     assert Enum.count(full) == 14
     assert %Baobab.Entry{payload: "Entry: 6"} = Baobab.log_entry(author_key, 6)
 
-    assert [^root | _] = Baobab.import(partial)
+    assert [^root | _] = Baobab.Interchange.import_binaries(partial)
     assert [^root | _] = latest
     assert [^root | _] = full
 
@@ -113,7 +133,8 @@ defmodule BaobabTest do
 
     assert {:error, "Unknown identity: ~short"} = Baobab.b62identity("~short")
 
-    assert [{:error, "Import requires a list of binaries"}] = Baobab.import("")
+    assert [{:error, "Import requires a list of binaries"}] =
+             Baobab.Interchange.import_binaries(:stuff)
 
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF", 5)
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF0123456789A", 5)
