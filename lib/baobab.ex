@@ -241,43 +241,63 @@ defmodule Baobab do
   end
 
   @doc """
-  Create and store a new identity
+  Create and store a new identity string
 
   An optional secret key to be associated with the identity may provided, either
   raw or base62 encoded. The public key will be derived therefrom.
   """
-  def create_identity(identity, secret_key \\ nil) do
-    # This is just unrolling how Ed25519 works
-    secret =
-      case secret_key do
-        nil -> :crypto.strong_rand_bytes(32)
-        <<raw::binary-size(32)>> -> raw
-        <<b62::binary-size(43)>> -> BaseX.Base62.decode(b62)
-      end
+  @spec create_identity(String.t(), binary | nil) ::
+          String.t() | {:error, String.t()}
+  def create_identity(identity, secret_key \\ nil)
+  def create_identity(identity, nil), do: create_identity(identity, :crypto.strong_rand_bytes(32))
 
+  def create_identity(identity, sk) when byte_size(sk) == 43 do
+    try do
+      create_identity(identity, BaseX.Base62.decode(sk))
+    rescue
+      _ -> {:error, "Improper Base62 key"}
+    end
+  end
+
+  def create_identity(identity, secret_key)
+      when is_binary(identity) and is_binary(secret_key) and byte_size(secret_key) == 32 do
     # Despite appearances, enacl does not derive public
     # from secret.  Instead it counts on the fact that the
     # two are concatenated. So this stays.
-    pair = {secret, Ed25519.derive_public_key(secret)}
+    pair = {secret_key, Ed25519.derive_public_key(secret_key)}
     ident_store(:put, {identity, pair})
     elem(pair, 1) |> b62identity
   end
 
+  def create_identity(_, _), do: {:error, "Improper arguments"}
+
   @doc """
   Rename an extant identity leaving its keys intact.
   """
-  def rename_identity(identity, new_name) do
+  @spec rename_identity(String.t(), String.t()) :: String.t() | {:error, String.t()}
+  # No guard against extant non-string to allow migration
+  def rename_identity(identity, new_name) when is_binary(new_name) do
     {sk, _} = ident_store(:get, identity)
     ident_store(:delete, identity)
     # We'll do the extra work to regen the public key
     create_identity(new_name, sk)
   end
 
+  def rename_identity(_, _), do: {:error, "Identities must be strings"}
+
   @doc """
   Drop a stored identity. `Baobab` will be unable to recover keys
   (notably `:secret` keys) destroyed herewith.
   """
-  def drop_identity(identity), do: ident_store(:delete, identity)
+  @spec drop_identity(String.t()) :: :ok | {:error, String.t()}
+  # I am not removing the ability to drop identities which can no
+  # longer be created.  If it's in there the consumer should be able to get it out
+  def drop_identity(identity) do
+    case ident_store(:get, identity) do
+      {_sk, _pk} -> ident_store(:delete, identity)
+      _ -> {:error, "No such identity"}
+    end
+  end
 
   @doc """
   A list of {author, log_id, max_seqnum} tuples in the configured store

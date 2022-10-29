@@ -113,9 +113,6 @@ defmodule BaobabTest do
     sk = Baobab.identity_key("first_id", :secret)
     assert b62id == Baobab.create_identity("first_dupe", sk)
     assert b62id == Baobab.create_identity("first_dupe", BaseX.Base62.encode(sk))
-    # This test is a little on the nose, but meh.
-    assert_raise CaseClauseError, fn -> Baobab.create_identity("bad_alias", "notakey") end
-
     assert 2 == Enum.count(Baobab.identities())
 
     assert b62id == Baobab.identity_key("first_dupe", :public) |> Baobab.b62identity()
@@ -128,6 +125,17 @@ defmodule BaobabTest do
   end
 
   test "errors or not" do
+    assert {:error, "Improper arguments"} == Baobab.create_identity(:dude)
+    assert {:error, "Improper arguments"} == Baobab.create_identity(nil)
+    assert {:error, "Improper arguments"} = Baobab.create_identity("bad_alias", "notakey")
+
+    assert {:error, "Improper Base62 key"} =
+             Baobab.create_identity("bad_alias", "itsmaybeakeymaybeakeymaybeakeymaybeakeynah!")
+
+    new_guy = Baobab.create_identity("newbie")
+    assert {:error, "Identities must be strings"} = Baobab.rename_identity("newbie", nil)
+    assert new_guy == Baobab.identity_key("newbie", :public) |> Baobab.b62identity()
+    assert {:error, "No such identity"} == Baobab.drop_identity(new_guy)
     assert :error = Baobab.identity_key("newb", :secret)
     assert :error = Baobab.identity_key("newb", :public)
 
