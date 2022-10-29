@@ -32,12 +32,12 @@ defmodule BaobabTest do
 
     # More interchange stuff might as well do it here
     # We demand at least one identity, so...
-    Baobab.create_identity("rando")
+    Baobab.Identity.create("rando")
     idhash = Baobab.current_hash(:identity)
     assert @export_dir == Baobab.Interchange.export_store(@export_dir)
     assert [] == Baobab.purge(:all, log_id: :all)
     refute "4XwOPI3gAo" == Baobab.current_hash(:content)
-    Baobab.drop_identity("rando")
+    Baobab.Identity.drop("rando")
     assert "1MxoSSY9hs" == Baobab.current_hash(:identity)
     assert :ok == Baobab.Interchange.import_store(@export_dir)
     assert "4XwOPI3gAo" == Baobab.current_hash(:content)
@@ -45,7 +45,7 @@ defmodule BaobabTest do
   end
 
   test "local use" do
-    b62author = Baobab.create_identity("testy")
+    b62author = Baobab.Identity.create("testy")
     root = Baobab.append_log("An entry for testing", "testy")
     assert %Baobab.Entry{seqnum: 1, log_id: 0} = root
 
@@ -59,7 +59,7 @@ defmodule BaobabTest do
     assert other_root == Baobab.log_entry("testy", 1, log_id: 1)
 
     <<short::binary-size(5), _::binary>> = b62author
-    assert b62author == Baobab.b62identity("~" <> short)
+    assert b62author == Baobab.Identity.as_base62("~" <> short)
 
     assert Baobab.full_log(b62author) |> Enum.count() == 2
     assert Baobab.full_log(b62author, log_id: 1) == [other_root]
@@ -69,7 +69,7 @@ defmodule BaobabTest do
                Baobab.append_log("Entry: " <> Integer.to_string(n), "testy")
     end
 
-    author_key = Baobab.identity_key("testy", :public)
+    author_key = Baobab.Identity.key("testy", :public)
     partial = Baobab.log_at(b62author, 5, format: :binary)
     assert Enum.count(partial) == 8
     latest = Baobab.log_at(author_key, :max, revalidate: true)
@@ -109,37 +109,37 @@ defmodule BaobabTest do
   end
 
   test "identity management" do
-    b62id = Baobab.create_identity("first_id")
-    sk = Baobab.identity_key("first_id", :secret)
-    assert b62id == Baobab.create_identity("first_dupe", sk)
-    assert b62id == Baobab.create_identity("first_dupe", BaseX.Base62.encode(sk))
-    assert 2 == Enum.count(Baobab.identities())
+    b62id = Baobab.Identity.create("first_id")
+    sk = Baobab.Identity.key("first_id", :secret)
+    assert b62id == Baobab.Identity.create("first_dupe", sk)
+    assert b62id == Baobab.Identity.create("first_dupe", BaseX.Base62.encode(sk))
+    assert 2 == Enum.count(Baobab.Identity.list())
 
-    assert b62id == Baobab.identity_key("first_dupe", :public) |> Baobab.b62identity()
-    assert b62id == Baobab.rename_identity("first_dupe", "final_id")
-    assert :error == Baobab.identity_key("first_dupe", :public)
+    assert b62id == Baobab.Identity.key("first_dupe", :public) |> Baobab.Identity.as_base62()
+    assert b62id == Baobab.Identity.rename("first_dupe", "final_id")
+    assert :error == Baobab.Identity.key("first_dupe", :public)
 
-    assert :ok == Baobab.drop_identity("final_id")
-    assert :error == Baobab.identity_key("final_id", :public)
-    assert [{"first_id", _}] = Baobab.identities()
+    assert :ok == Baobab.Identity.drop("final_id")
+    assert :error == Baobab.Identity.key("final_id", :public)
+    assert [{"first_id", _}] = Baobab.Identity.list()
   end
 
   test "errors or not" do
-    assert {:error, "Improper arguments"} == Baobab.create_identity(:dude)
-    assert {:error, "Improper arguments"} == Baobab.create_identity(nil)
-    assert {:error, "Improper arguments"} = Baobab.create_identity("bad_alias", "notakey")
+    assert {:error, "Improper arguments"} == Baobab.Identity.create(:dude)
+    assert {:error, "Improper arguments"} == Baobab.Identity.create(nil)
+    assert {:error, "Improper arguments"} = Baobab.Identity.create("bad_alias", "notakey")
 
     assert {:error, "Improper Base62 key"} =
-             Baobab.create_identity("bad_alias", "itsmaybeakeymaybeakeymaybeakeymaybeakeynah!")
+             Baobab.Identity.create("bad_alias", "itsmaybeakeymaybeakeymaybeakeymaybeakeynah!")
 
-    new_guy = Baobab.create_identity("newbie")
-    assert {:error, "Identities must be strings"} = Baobab.rename_identity("newbie", nil)
-    assert new_guy == Baobab.identity_key("newbie", :public) |> Baobab.b62identity()
-    assert {:error, "No such identity"} == Baobab.drop_identity(new_guy)
-    assert :error = Baobab.identity_key("newb", :secret)
-    assert :error = Baobab.identity_key("newb", :public)
+    new_guy = Baobab.Identity.create("newbie")
+    assert {:error, "Identities must be strings"} = Baobab.Identity.rename("newbie", nil)
+    assert new_guy == Baobab.Identity.key("newbie", :public) |> Baobab.Identity.as_base62()
+    assert {:error, "No such identity"} == Baobab.Identity.drop(new_guy)
+    assert :error = Baobab.Identity.key("newb", :secret)
+    assert :error = Baobab.Identity.key("newb", :public)
 
-    assert {:error, "Unknown identity: ~short"} = Baobab.b62identity("~short")
+    assert {:error, "Unknown identity: ~short"} = Baobab.Identity.as_base62("~short")
 
     assert [{:error, "Import requires a list of binaries"}] =
              Baobab.Interchange.import_binaries(:stuff)
@@ -149,8 +149,8 @@ defmodule BaobabTest do
   end
 
   test "purgeitory" do
-    b62first = Baobab.create_identity("first")
-    b62second = Baobab.create_identity("second")
+    b62first = Baobab.Identity.create("first")
+    b62second = Baobab.Identity.create("second")
 
     Baobab.append_log("The first guy says", "first")
     Baobab.append_log("The second guy says", "second")

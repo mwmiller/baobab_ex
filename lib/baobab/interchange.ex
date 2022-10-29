@@ -57,7 +57,7 @@ defmodule Baobab.Interchange do
     case json_file |> File.read!() |> Jason.decode!() do
       # This is surprisingly liberal given our stance on current importing
       %{"identity" => id, "secret_key" => sk, "public_key" => pk} ->
-        case Baobab.create_identity(id, sk) do
+        case Baobab.Identity.create(id, sk) do
           ^pk -> :ok
           _ -> notours()
         end
@@ -95,7 +95,7 @@ defmodule Baobab.Interchange do
     id_path = Path.join([where, "identities"])
     :ok = File.mkdir_p(id_path)
     :ok = File.chmod(id_path, 0o700)
-    export_store_identities(Baobab.identities(), id_path)
+    export_store_identities(Baobab.Identity.list(), id_path)
     bb_path = Path.join(where, "content")
     :ok = File.mkdir_p(bb_path)
     :ok = File.chmod(bb_path, 0o700)
@@ -115,7 +115,7 @@ defmodule Baobab.Interchange do
         "key_type" => "ed25519",
         "identity" => i,
         "public_key" => pk,
-        "secret_key" => Baobab.identity_key(i, :secret) |> BaseX.Base62.encode()
+        "secret_key" => Baobab.Identity.key(i, :secret) |> BaseX.Base62.encode()
       }
       |> Jason.encode()
 

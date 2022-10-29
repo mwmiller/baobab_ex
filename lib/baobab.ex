@@ -1,4 +1,6 @@
 defmodule Baobab do
+  alias Baobab.Identity
+
   @moduledoc """
   Baobab is a pure Elixir implementation of the 
   [Bamboo](https://github.com/AljoschaMeyer/bamboo) append-only log.
@@ -23,45 +25,6 @@ defmodule Baobab do
   """
   @defaults %{format: :entry, log_id: 0, revalidate: false, replace: false, clump_id: "default"}
 
-  BaseX.prepare_module(
-    "Base62",
-    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
-    32
-  )
-
-  @doc """
-  Resolve an identity to its Base62 representation
-
-  Attempts to resolve `~short` using stored logs
-  """
-  # Looks like a short base62
-  def b62identity(identity)
-  def b62identity(id) when not is_binary(id), do: {:error, "Unresolvable identity"}
-
-  def b62identity(<<"~", short::binary>>) do
-    case Enum.filter(stored_identities(), fn a -> String.starts_with?(a, short) end) do
-      [] -> {:error, "Unknown identity: ~" <> short}
-      [id] -> id
-      _ -> {:error, "Ambiguous identity: ~" <> short}
-    end
-  end
-
-  # Looks like a base62-encoded key
-  def b62identity(identity) when byte_size(identity) == 43, do: identity
-  # Looks like a proper key
-  def b62identity(identity) when byte_size(identity) == 32, do: BaseX.Base62.encode(identity)
-  # I guess it's a stored identity?
-  def b62identity(identity) do
-    case identity_key(identity, :public) do
-      :error -> {:error, "Unknown identity"}
-      key -> BaseX.Base62.encode(key)
-    end
-  end
-
-  defp stored_identities() do
-    stored_info() |> Enum.map(fn {a, _, _} -> a end) |> Enum.uniq()
-  end
-
   @doc """
   Create and store a new log entry for a stored identity
   """
@@ -75,7 +38,7 @@ defmodule Baobab do
   the latest entry.  This allows validation while reducing space used
   """
   def compact(author, options \\ []) do
-    a = author |> b62identity
+    a = author |> Identity.as_base62()
     {log_id, clump_id} = options |> optvals([:log_id, :clump_id])
 
     case all_seqnum(a, options) do
@@ -106,7 +69,7 @@ defmodule Baobab do
         n -> n
       end
 
-    ak = author |> b62identity
+    ak = author |> Identity.as_base62()
 
     {_, log_id, _, clump_id} =
       opts = options |> optvals([:format, :log_id, :revalidate, :clump_id])
@@ -125,7 +88,7 @@ defmodule Baobab do
     do: {:error, "Improper range specification"}
 
   def log_range(author, {first, last}, options) do
-    ak = author |> b62identity
+    ak = author |> Identity.as_base62()
 
     {_, log_id, _, clump_id} =
       opts = options |> optvals([:format, :log_id, :revalidate, :clump_id])
@@ -155,10 +118,17 @@ defmodule Baobab do
     {log_id, clump_id} = optvals(options, [:log_id, :clump_id])
 
     case {author, log_id} do
-      {:all, :all} -> spool(:content, clump_id, :truncate)
-      {:all, n} -> spool(:content, clump_id, :match_delete, {:_, n, :_})
-      {author, :all} -> spool(:content, clump_id, :match_delete, {author |> b62identity, :_, :_})
-      {author, n} -> spool(:content, clump_id, :match_delete, {author |> b62identity, n, :_})
+      {:all, :all} ->
+        spool(:content, clump_id, :truncate)
+
+      {:all, n} ->
+        spool(:content, clump_id, :match_delete, {:_, n, :_})
+
+      {author, :all} ->
+        spool(:content, clump_id, :match_delete, {author |> Identity.as_base62(), :_, :_})
+
+      {author, n} ->
+        spool(:content, clump_id, :match_delete, {author |> Identity.as_base62(), n, :_})
     end
 
     Baobab.stored_info(clump_id)
@@ -170,7 +140,7 @@ defmodule Baobab do
   def full_log(author, options \\ []) do
     opts = options |> optvals([:format, :log_id, :revalidate, :clump_id])
 
-    author |> b62identity |> gather_all_entries(opts, max_seqnum(author, options), [])
+    author |> Identity.as_base62() |> gather_all_entries(opts, max_seqnum(author, options), [])
   end
 
   defp gather_all_entries(_, _, 0, acc), do: acc
@@ -212,7 +182,7 @@ defmodule Baobab do
   author key and log number
   """
   def all_seqnum(author, options \\ []) do
-    auth = author |> b62identity
+    auth = author |> Identity.as_base62()
 
     {log_id, clump_id} = options |> optvals([:log_id, :clump_id])
 
@@ -237,66 +207,7 @@ defmodule Baobab do
       end
 
     opts = options |> optvals([:format, :log_id, :revalidate, :clump_id])
-    author |> b62identity |> Baobab.Entry.retrieve(which, opts)
-  end
-
-  @doc """
-  Create and store a new identity string
-
-  An optional secret key to be associated with the identity may provided, either
-  raw or base62 encoded. The public key will be derived therefrom.
-  """
-  @spec create_identity(String.t(), binary | nil) ::
-          String.t() | {:error, String.t()}
-  def create_identity(identity, secret_key \\ nil)
-  def create_identity(identity, nil), do: create_identity(identity, :crypto.strong_rand_bytes(32))
-
-  def create_identity(identity, sk) when byte_size(sk) == 43 do
-    try do
-      create_identity(identity, BaseX.Base62.decode(sk))
-    rescue
-      _ -> {:error, "Improper Base62 key"}
-    end
-  end
-
-  def create_identity(identity, secret_key)
-      when is_binary(identity) and is_binary(secret_key) and byte_size(secret_key) == 32 do
-    # Despite appearances, enacl does not derive public
-    # from secret.  Instead it counts on the fact that the
-    # two are concatenated. So this stays.
-    pair = {secret_key, Ed25519.derive_public_key(secret_key)}
-    ident_store(:put, {identity, pair})
-    elem(pair, 1) |> b62identity
-  end
-
-  def create_identity(_, _), do: {:error, "Improper arguments"}
-
-  @doc """
-  Rename an extant identity leaving its keys intact.
-  """
-  @spec rename_identity(String.t(), String.t()) :: String.t() | {:error, String.t()}
-  # No guard against extant non-string to allow migration
-  def rename_identity(identity, new_name) when is_binary(new_name) do
-    {sk, _} = ident_store(:get, identity)
-    ident_store(:delete, identity)
-    # We'll do the extra work to regen the public key
-    create_identity(new_name, sk)
-  end
-
-  def rename_identity(_, _), do: {:error, "Identities must be strings"}
-
-  @doc """
-  Drop a stored identity. `Baobab` will be unable to recover keys
-  (notably `:secret` keys) destroyed herewith.
-  """
-  @spec drop_identity(String.t()) :: :ok | {:error, String.t()}
-  # I am not removing the ability to drop identities which can no
-  # longer be created.  If it's in there the consumer should be able to get it out
-  def drop_identity(identity) do
-    case ident_store(:get, identity) do
-      {_sk, _pk} -> ident_store(:delete, identity)
-      _ -> {:error, "No such identity"}
-    end
+    author |> Identity.as_base62() |> Baobab.Entry.retrieve(which, opts)
   end
 
   @doc """
@@ -344,40 +255,6 @@ defmodule Baobab do
   end
 
   @doc """
-  Retrieve the key for a stored identity.
-
-  Can be either the `:public` or `:secret` key
-  """
-  def identity_key(identity, which) do
-    case ident_store(:get, identity) do
-      {secret, public} ->
-        case which do
-          :secret -> secret
-          :public -> public
-          :signing -> secret <> public
-          _ -> :error
-        end
-
-      _ ->
-        :error
-    end
-  end
-
-  @doc """
-  List all known identities with their base62 public key representation
-  """
-  @spec identities() :: [{String.t(), String.t()}]
-  def identities() do
-    ident_store(:foldl, fn item, acc ->
-      case item do
-        {a, {_, public}} -> [{a, b62identity(public)} | acc]
-        _ -> acc
-      end
-    end)
-    |> Enum.sort()
-  end
-
-  @doc """
   Retrieve the current hash of the `:content` or `:identity` store.
 
   No information should be gleaned from any particular hash beyond whether
@@ -406,9 +283,6 @@ defmodule Baobab do
     |> Enum.map(fn p -> Baobab.Interchange.clump_from_path(p) end)
     |> Enum.sort()
   end
-
-  @doc false
-  def ident_store(action, value \\ nil), do: spool(:identity, "", action, value)
 
   def spool(which, clump_id, action, value \\ nil) do
     spool_store(which, clump_id, :open)
@@ -453,7 +327,7 @@ defmodule Baobab do
 
   def manage_content_store(clump_id, {author, log_id, seq}, {name, how, content}) do
     spool_store(:content, clump_id, :open)
-    key = {author |> Baobab.b62identity(), log_id, seq}
+    key = {author |> Baobab.Identity.as_base62(), log_id, seq}
     curr = spool_act(:content, :get, key)
 
     actval =
@@ -511,7 +385,7 @@ defmodule Baobab do
     stuff =
       case which do
         :content -> all_entries(clump_id)
-        :identity -> identities()
+        :identity -> Identity.list()
       end
 
     hash =
