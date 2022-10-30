@@ -114,42 +114,6 @@ defmodule Baobab.Entry do
   end
 
   @doc false
-  # Handle the simplest case first
-  def retrieve(author, seq, {:binary, log_id, false, clump_id}) do
-    entry_id = {author, log_id, seq}
-
-    case Persistence.content(:both, :contents, entry_id, clump_id) do
-      {:error, _} -> :error
-      {_, :error} -> :error
-      {entry, payload} -> entry <> payload
-    end
-  end
-
-  # This handles the other three cases:
-  # :entry validated or unvalidated
-  # :binary validated
-  def retrieve(author, seq, {fmt, log_id, validate, clump_id}) do
-    entry_id = {author, log_id, seq}
-    binary = Persistence.content(:entry, :contents, entry_id, clump_id)
-    res = from_binaries(binary, validate, clump_id) |> hd
-
-    case {res, fmt} do
-      {{:error, :missing}, _} ->
-        :error
-
-      {:error, _} ->
-        Persistence.content(:entry, :delete, entry_id, clump_id)
-        :error
-
-      {entry, :entry} ->
-        entry
-
-      {_, :binary} ->
-        binary
-    end
-  end
-
-  @doc false
   def from_binaries(stuff, validate, clump_id, acc \\ [])
   def from_binaries(:error, _, _, _), do: [{:error, :missing}]
   def from_binaries("", _, _, acc), do: Enum.reverse(acc)

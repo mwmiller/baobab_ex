@@ -76,7 +76,7 @@ defmodule Baobab do
 
     certificate_pool(ak, which, log_id, clump_id)
     |> Enum.reverse()
-    |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
+    |> Enum.map(fn n -> Persistence.retrieve(ak, n, opts) end)
   end
 
   @doc """
@@ -97,7 +97,7 @@ defmodule Baobab do
     |> Enum.filter(fn n ->
       Persistence.content(:entry, :exists, {author, log_id, n}, clump_id)
     end)
-    |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
+    |> Enum.map(fn n -> Persistence.retrieve(ak, n, opts) end)
   end
 
   @doc """
@@ -157,7 +157,7 @@ defmodule Baobab do
 
   defp gather_all_entries(author, opts, n, acc) do
     newacc =
-      case Baobab.Entry.retrieve(author, n, opts) do
+      case Persistence.retrieve(author, n, opts) do
         :error -> acc
         entry -> [entry | acc]
       end
@@ -218,7 +218,7 @@ defmodule Baobab do
       end
 
     opts = options |> optvals([:format, :log_id, :revalidate, :clump_id])
-    author |> Identity.as_base62() |> Baobab.Entry.retrieve(which, opts)
+    author |> Identity.as_base62() |> Persistence.retrieve(which, opts)
   end
 
   @doc """

@@ -34,7 +34,7 @@ defmodule Baobab.Entry.Validator do
 
   defp verify_chain([seq | rest], {clump_id, author, log_id} = which, _answer) do
     new_answer =
-      case Baobab.Entry.retrieve(author, seq, {:entry, log_id, false, clump_id}) do
+      case Persistence.retrieve(author, seq, {:entry, log_id, false, clump_id}) do
         :error ->
           {:error, "Could not retrieve certificate chain seqnum: " <> Integer.to_string(seq)}
 

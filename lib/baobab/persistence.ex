@@ -140,6 +140,42 @@ defmodule Baobab.Persistence do
     actval
   end
 
+  @doc false
+  # Handle the simplest case first
+  def retrieve(author, seq, {:binary, log_id, false, clump_id}) do
+    entry_id = {author, log_id, seq}
+
+    case content(:both, :contents, entry_id, clump_id) do
+      {:error, _} -> :error
+      {_, :error} -> :error
+      {entry, payload} -> entry <> payload
+    end
+  end
+
+  # This handles the other three cases:
+  # :entry validated or unvalidated
+  # :binary validated
+  def retrieve(author, seq, {fmt, log_id, validate, clump_id}) do
+    entry_id = {author, log_id, seq}
+    binary = content(:entry, :contents, entry_id, clump_id)
+    res = Baobab.Entry.from_binaries(binary, validate, clump_id) |> hd
+
+    case {res, fmt} do
+      {{:error, :missing}, _} ->
+        :error
+
+      {:error, _} ->
+        content(:entry, :delete, entry_id, clump_id)
+        :error
+
+      {entry, :entry} ->
+        entry
+
+      {_, :binary} ->
+        binary
+    end
+  end
+
   defp proper_db_path(:identity, clump_id) when byte_size(clump_id) > 0,
     do: proper_db_path(:identity, "")
 
