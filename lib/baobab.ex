@@ -1,5 +1,5 @@
 defmodule Baobab do
-  alias Baobab.{Identity, Persistence}
+  alias Baobab.{Entry, Identity, Interchange, Persistence}
 
   @moduledoc """
   Baobab is a pure Elixir implementation of the 
@@ -30,7 +30,7 @@ defmodule Baobab do
   """
   def append_log(payload, identity, options \\ []) do
     {log_id, clump_id} = options |> optvals([:log_id, :clump_id])
-    Baobab.Entry.create(payload, clump_id, identity, log_id)
+    Entry.create(payload, clump_id, identity, log_id)
   end
 
   @doc """
@@ -51,7 +51,7 @@ defmodule Baobab do
         eset = entries |> MapSet.new()
 
         for e <- MapSet.difference(eset, pool) do
-          {Baobab.Entry.delete(a, e, log_id, clump_id), e}
+          {Entry.delete(a, e, log_id, clump_id), e}
         end
     end
   end
@@ -106,7 +106,7 @@ defmodule Baobab do
   `:all` may be specified for `author` and/or the `log_id` option.
   Specifying both effectively clears the entire store.
 
-  Returns `Baobab.stored_info/0`
+  Returns `stored_info/0`
 
   ## Examples
 
@@ -141,7 +141,7 @@ defmodule Baobab do
         )
     end
 
-    Baobab.stored_info(clump_id)
+    stored_info(clump_id)
   end
 
   @doc """
@@ -274,7 +274,7 @@ defmodule Baobab do
 
     Path.join([spool, "*/content.dets"])
     |> Path.wildcard()
-    |> Enum.map(fn p -> Baobab.Interchange.clump_from_path(p) end)
+    |> Enum.map(fn p -> Interchange.clump_from_path(p) end)
     |> Enum.sort()
   end
 

@@ -1,4 +1,5 @@
 defmodule Baobab.Entry do
+  alias Baobab.Entry.Validator
   alias Baobab.{Identity, Persistence}
 
   @moduledoc """
@@ -74,7 +75,7 @@ defmodule Baobab.Entry do
   end
 
   def store(%Baobab.Entry{} = entry, clump_id, true) do
-    case Baobab.Entry.Validator.validate(clump_id, entry) do
+    case Validator.validate(clump_id, entry) do
       %Baobab.Entry{
         tag: tag,
         author: author,
@@ -121,7 +122,7 @@ defmodule Baobab.Entry do
   def from_binaries(bin, validate, clump_id, acc) do
     case {from_binary(bin, clump_id), validate} do
       {{%Baobab.Entry{} = entry, rest}, true} ->
-        Baobab.Entry.Validator.validate(clump_id, entry)
+        Validator.validate(clump_id, entry)
         from_binaries(rest, true, clump_id, [entry | acc])
 
       {{%Baobab.Entry{} = entry, rest}, false} ->

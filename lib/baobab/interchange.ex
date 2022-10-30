@@ -1,4 +1,6 @@
 defmodule Baobab.Interchange do
+  alias Baobab.{Entry, Identity}
+
   @moduledoc """
   Functions related to the interchange of Bamboo data with
   other Bamboo sources
@@ -23,8 +25,8 @@ defmodule Baobab.Interchange do
   defp import_listed_binaries([binary | rest], {overwrite, clump_id} = opts, acc) do
     result =
       binary
-      |> Baobab.Entry.from_binaries(true, clump_id)
-      |> Enum.map(fn e -> Baobab.Entry.store(e, clump_id, overwrite) end)
+      |> Entry.from_binaries(true, clump_id)
+      |> Enum.map(fn e -> Entry.store(e, clump_id, overwrite) end)
 
     import_listed_binaries(rest, opts, acc ++ result)
   end
@@ -57,7 +59,7 @@ defmodule Baobab.Interchange do
     case json_file |> File.read!() |> Jason.decode!() do
       # This is surprisingly liberal given our stance on current importing
       %{"identity" => id, "secret_key" => sk, "public_key" => pk} ->
-        case Baobab.Identity.create(id, sk) do
+        case Identity.create(id, sk) do
           ^pk -> :ok
           _ -> notours()
         end
@@ -95,7 +97,7 @@ defmodule Baobab.Interchange do
     id_path = Path.join([where, "identities"])
     :ok = File.mkdir_p(id_path)
     :ok = File.chmod(id_path, 0o700)
-    export_store_identities(Baobab.Identity.list(), id_path)
+    export_store_identities(Identity.list(), id_path)
     bb_path = Path.join(where, "content")
     :ok = File.mkdir_p(bb_path)
     :ok = File.chmod(bb_path, 0o700)
@@ -115,7 +117,7 @@ defmodule Baobab.Interchange do
         "key_type" => "ed25519",
         "identity" => i,
         "public_key" => pk,
-        "secret_key" => Baobab.Identity.key(i, :secret) |> BaseX.Base62.encode()
+        "secret_key" => Identity.key(i, :secret) |> BaseX.Base62.encode()
       }
       |> Jason.encode()
 

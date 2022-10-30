@@ -1,4 +1,6 @@
 defmodule Baobab.Identity do
+  alias Baobab.Persistence
+
   @moduledoc """
   Functions related too Baobab identity (keypair) handling
   """
@@ -137,6 +139,5 @@ defmodule Baobab.Identity do
   end
 
   @doc false
-  def ident_store(action, value \\ nil),
-    do: Baobab.Persistence.action(:identity, "", action, value)
+  def ident_store(action, value \\ nil), do: Persistence.action(:identity, "", action, value)
 end

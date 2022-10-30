@@ -1,4 +1,6 @@
 defmodule Baobab.Persistence do
+  alias Baobab.{Entry, Identity}
+
   @moduledoc """
   Functions related to Baobab values persistence
   """
@@ -88,7 +90,7 @@ defmodule Baobab.Persistence do
 
   def content(subject, action, {author, log_id, seq}, clump_id, addlval) do
     store(:content, clump_id, :open)
-    key = {author |> Baobab.Identity.as_base62(), log_id, seq}
+    key = {author |> Identity.as_base62(), log_id, seq}
     curr = perform_action(:content, :get, key)
 
     actval =
@@ -158,7 +160,7 @@ defmodule Baobab.Persistence do
   def retrieve(author, seq, {fmt, log_id, validate, clump_id}) do
     entry_id = {author, log_id, seq}
     binary = content(:entry, :contents, entry_id, clump_id)
-    res = Baobab.Entry.from_binaries(binary, validate, clump_id) |> hd
+    res = Entry.from_binaries(binary, validate, clump_id) |> hd
 
     case {res, fmt} do
       {{:error, :missing}, _} ->
