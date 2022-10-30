@@ -1,4 +1,6 @@
 defmodule Baobab.Entry.Validator do
+  alias Baobab.Persistence
+
   @moduledoc """
   Validation of `Baobab.Entry` structs
   """
@@ -144,7 +146,7 @@ defmodule Baobab.Entry.Validator do
         {:error, "Invalid lipmaa link when matches backlink"}
 
       {_, n, ll} ->
-        case Baobab.manage_content_store(clump_id, {author, log_id, n}, {:entry, :contents}) do
+        case Persistence.manage_content_store(clump_id, {author, log_id, n}, {:entry, :contents}) do
           :error ->
             {:error, "Missing lipmaalink entry for verificaton"}
 
@@ -172,7 +174,11 @@ defmodule Baobab.Entry.Validator do
         seqnum: seq,
         backlink: bl
       }) do
-    case Baobab.manage_content_store(clump_id, {author, log_id, seq - 1}, {:entry, :contents}) do
+    case Persistence.manage_content_store(
+           clump_id,
+           {author, log_id, seq - 1},
+           {:entry, :contents}
+         ) do
       # We don't have it so we cannot check it.  We'll say it's OK
       # This is required for partial replication to be meaningful.
       # I am sure I will come to regret this post-haste

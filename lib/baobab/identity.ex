@@ -137,5 +137,6 @@ defmodule Baobab.Identity do
   end
 
   @doc false
-  def ident_store(action, value \\ nil), do: Baobab.spool(:identity, "", action, value)
+  def ident_store(action, value \\ nil),
+    do: Baobab.Persistence.action(:identity, "", action, value)
 end

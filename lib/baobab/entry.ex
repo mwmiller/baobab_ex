@@ -1,4 +1,6 @@
 defmodule Baobab.Entry do
+  alias Baobab.{Identity, Persistence}
+
   @moduledoc """
   A struct representing a Baobab entry
   """
@@ -23,8 +25,8 @@ defmodule Baobab.Entry do
 
   @doc false
   def create(payload, clump_id, identity, log_id) do
-    author = Baobab.Identity.key(identity, :public)
-    signer = Baobab.Identity.key(identity, :signing)
+    author = Identity.key(identity, :public)
+    signer = Identity.key(identity, :signing)
     prev = Baobab.max_seqnum(author, log_id: log_id, clump_id: clump_id)
     seq = prev + 1
     head = <<0>> <> author <> Varu64.encode(log_id) <> Varu64.encode(seq)
@@ -32,13 +34,13 @@ defmodule Baobab.Entry do
     ll =
       case Lipmaa.linkseq(seq) do
         ^prev -> <<>>
-        n -> Baobab.manage_content_store(clump_id, {author, log_id, n}, {:entry, :hash})
+        n -> Persistence.manage_content_store(clump_id, {author, log_id, n}, {:entry, :hash})
       end
 
     bl =
       case prev do
         0 -> <<>>
-        n -> Baobab.manage_content_store(clump_id, {author, log_id, n}, {:entry, :hash})
+        n -> Persistence.manage_content_store(clump_id, {author, log_id, n}, {:entry, :hash})
       end
 
     tail = Varu64.encode(byte_size(payload)) <> YAMFhash.create(payload, 0)
@@ -47,7 +49,7 @@ defmodule Baobab.Entry do
     sig = :enacl.sign_detached(meat, signer)
     entry = meat <> sig
 
-    Baobab.manage_content_store(
+    Persistence.manage_content_store(
       clump_id,
       {author, log_id, seq},
       {:both, :write, {entry, payload}}
@@ -69,7 +71,7 @@ defmodule Baobab.Entry do
         clump_id,
         false
       ) do
-    case Baobab.manage_content_store(clump_id, {author, log_id, seq}, {:entry, :exists}) do
+    case Persistence.manage_content_store(clump_id, {author, log_id, seq}, {:entry, :exists}) do
       false -> store(entry, clump_id, true)
       true -> entry
     end
@@ -89,7 +91,11 @@ defmodule Baobab.Entry do
         sig: sig,
         size: size
       } ->
-        Baobab.manage_content_store(clump_id, {author, log_id, seq}, {:payload, :write, payload})
+        Persistence.manage_content_store(
+          clump_id,
+          {author, log_id, seq},
+          {:payload, :write, payload}
+        )
 
         contents =
           tag <>
@@ -97,7 +103,12 @@ defmodule Baobab.Entry do
             Varu64.encode(log_id) <>
             Varu64.encode(seq) <> option(ll) <> option(bl) <> Varu64.encode(size) <> ph <> sig
 
-        Baobab.manage_content_store(clump_id, {author, log_id, seq}, {:entry, :write, contents})
+        Persistence.manage_content_store(
+          clump_id,
+          {author, log_id, seq},
+          {:entry, :write, contents}
+        )
+
         entry
 
       error ->
@@ -113,7 +124,7 @@ defmodule Baobab.Entry do
   @doc false
   def delete(author, seq, log_id, clump_id) do
     entry_id = {author, log_id, seq}
-    Baobab.manage_content_store(clump_id, entry_id, {:entry, :delete})
+    Persistence.manage_content_store(clump_id, entry_id, {:entry, :delete})
   end
 
   @doc false
@@ -121,7 +132,7 @@ defmodule Baobab.Entry do
   def retrieve(author, seq, {:binary, log_id, false, clump_id}) do
     entry_id = {author, log_id, seq}
 
-    case Baobab.manage_content_store(clump_id, entry_id, {:both, :contents}) do
+    case Persistence.manage_content_store(clump_id, entry_id, {:both, :contents}) do
       {:error, _} -> :error
       {_, :error} -> :error
       {entry, payload} -> entry <> payload
@@ -133,7 +144,7 @@ defmodule Baobab.Entry do
   # :binary validated
   def retrieve(author, seq, {fmt, log_id, validate, clump_id}) do
     entry_id = {author, log_id, seq}
-    binary = Baobab.manage_content_store(clump_id, entry_id, {:entry, :contents})
+    binary = Persistence.manage_content_store(clump_id, entry_id, {:entry, :contents})
     res = from_binaries(binary, validate, clump_id) |> hd
 
     case {res, fmt} do
@@ -141,7 +152,7 @@ defmodule Baobab.Entry do
         :error
 
       {:error, _} ->
-        Baobab.manage_content_store(clump_id, entry_id, {:entry, :delete})
+        Persistence.manage_content_store(clump_id, entry_id, {:entry, :delete})
         :error
 
       {entry, :entry} ->
@@ -227,7 +238,7 @@ defmodule Baobab.Entry do
     {Map.put(
        map,
        :payload,
-       Baobab.manage_content_store(clump_id, {author, log_id, seqnum}, {:payload, :contents})
+       Persistence.manage_content_store(clump_id, {author, log_id, seqnum}, {:payload, :contents})
      ), ""}
   end
 

@@ -1,5 +1,5 @@
 defmodule Baobab do
-  alias Baobab.Identity
+  alias Baobab.{Identity, Persistence}
 
   @moduledoc """
   Baobab is a pure Elixir implementation of the 
@@ -95,7 +95,7 @@ defmodule Baobab do
 
     first..last
     |> Enum.filter(fn n ->
-      manage_content_store(clump_id, {author, log_id, n}, {:entry, :exists})
+      Persistence.manage_content_store(clump_id, {author, log_id, n}, {:entry, :exists})
     end)
     |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
   end
@@ -119,16 +119,26 @@ defmodule Baobab do
 
     case {author, log_id} do
       {:all, :all} ->
-        spool(:content, clump_id, :truncate)
+        Persistence.action(:content, clump_id, :truncate)
 
       {:all, n} ->
-        spool(:content, clump_id, :match_delete, {:_, n, :_})
+        Persistence.action(:content, clump_id, :match_delete, {:_, n, :_})
 
       {author, :all} ->
-        spool(:content, clump_id, :match_delete, {author |> Identity.as_base62(), :_, :_})
+        Persistence.action(
+          :content,
+          clump_id,
+          :match_delete,
+          {author |> Identity.as_base62(), :_, :_}
+        )
 
       {author, n} ->
-        spool(:content, clump_id, :match_delete, {author |> Identity.as_base62(), n, :_})
+        Persistence.action(
+          :content,
+          clump_id,
+          :match_delete,
+          {author |> Identity.as_base62(), n, :_}
+        )
     end
 
     Baobab.stored_info(clump_id)
@@ -162,7 +172,8 @@ defmodule Baobab do
     seq
     |> Lipmaa.cert_pool()
     |> Enum.reject(fn n ->
-      n > max or not manage_content_store(clump_id, {author, log_id, n}, {:entry, :exists})
+      n > max or
+        not Persistence.manage_content_store(clump_id, {author, log_id, n}, {:entry, :exists})
     end)
   end
 
@@ -187,7 +198,7 @@ defmodule Baobab do
     {log_id, clump_id} = options |> optvals([:log_id, :clump_id])
 
     :content
-    |> spool(clump_id, :match, {auth, log_id, :"$1"})
+    |> Persistence.action(clump_id, :match, {auth, log_id, :"$1"})
     |> List.flatten()
     |> Enum.sort()
   end
@@ -237,7 +248,7 @@ defmodule Baobab do
 
   def all_entries(clump_id) do
     :content
-    |> spool(clump_id, :foldl, fn item, acc ->
+    |> Persistence.action(clump_id, :foldl, fn item, acc ->
       case item do
         {e, _} -> [e | acc]
         _ -> acc
@@ -255,23 +266,6 @@ defmodule Baobab do
   end
 
   @doc """
-  Retrieve the current hash of the `:content` or `:identity` store.
-
-  No information should be gleaned from any particular hash beyond whether
-  the contents have changed since a previous check.
-  """
-  def current_hash(which, clump_id \\ "default")
-
-  def current_hash(which, clump_id) do
-    key = {clump_id, which}
-
-    case spool(:status, clump_id, :get, key) do
-      [{^key, hash}] -> hash
-      _ -> recompute_hash(key)
-    end
-  end
-
-  @doc """
   Retrieve a list of all populated clumps
   """
 
@@ -283,133 +277,6 @@ defmodule Baobab do
     |> Enum.map(fn p -> Baobab.Interchange.clump_from_path(p) end)
     |> Enum.sort()
   end
-
-  def spool(which, clump_id, action, value \\ nil) do
-    spool_store(which, clump_id, :open)
-    retval = spool_act(which, action, value)
-
-    case action in [:truncate, :delete, :put, :match_delete] do
-      true -> recompute_hash({clump_id, which})
-      false -> :ok
-    end
-
-    spool_store(which, clump_id, :close)
-    retval
-  end
-
-  defp spool_act(which, :get, key) do
-    case :dets.lookup(which, key) do
-      [{^key, val} | _] -> val
-      [] -> nil
-    end
-  end
-
-  defp spool_act(which, :foldl, fun), do: :dets.foldl(fun, [], which)
-  defp spool_act(which, :truncate, _), do: :dets.delete_all_objects(which)
-  defp spool_act(which, :delete, key), do: :dets.delete(which, key)
-  defp spool_act(which, :put, kv), do: :dets.insert(which, kv)
-
-  defp spool_act(which, :match_delete, key_pattern),
-    do: :dets.match_delete(which, {key_pattern, :_})
-
-  defp spool_act(which, :match, key_pattern),
-    do: :dets.match(which, {key_pattern, :_})
-
-  defp spool_store(which, clump_id, :open) do
-    {:ok, ^which} = :dets.open_file(which, file: proper_db_path(which, clump_id))
-  end
-
-  defp spool_store(which, _clump_id, :close), do: :dets.close(which)
-
-  @doc false
-  def manage_content_store(clump_id, entry_id, {name, how}),
-    do: manage_content_store(clump_id, entry_id, {name, how, nil})
-
-  def manage_content_store(clump_id, {author, log_id, seq}, {name, how, content}) do
-    spool_store(:content, clump_id, :open)
-    key = {author |> Baobab.Identity.as_base62(), log_id, seq}
-    curr = spool_act(:content, :get, key)
-
-    actval =
-      case {how, curr} do
-        {:delete, nil} ->
-          :ok
-
-        {:delete, _} ->
-          spool_act(:content, :delete, key)
-
-        {:contents, nil} ->
-          case name do
-            :both -> {:error, :error}
-            _ -> :error
-          end
-
-        {:contents, map} ->
-          case name do
-            :both -> {Map.get(map, :entry, :error), Map.get(map, :payload, :error)}
-            key -> Map.get(map, key, :error)
-          end
-
-        {:hash, %{^name => c}} ->
-          YAMFhash.create(c, 0)
-
-        {:write, prev} ->
-          case name do
-            :both ->
-              {entry, payload} = content
-
-              spool_act(:content, :put, {key, %{:entry => entry, :payload => payload}})
-
-            map_key ->
-              map = if is_nil(prev), do: %{}, else: prev
-              spool_act(:content, :put, {key, Map.merge(map, %{map_key => content})})
-          end
-
-        {:exists, nil} ->
-          false
-
-        {:exists, _} ->
-          true
-
-        {_, _} ->
-          :error
-      end
-
-    spool_store(:content, clump_id, :close)
-    actval
-  end
-
-  defp recompute_hash({_, :status}), do: "nahnah"
-
-  defp recompute_hash({clump_id, which}) do
-    stuff =
-      case which do
-        :content -> all_entries(clump_id)
-        :identity -> Identity.list()
-      end
-
-    hash =
-      stuff
-      |> :erlang.term_to_binary()
-      |> Blake2.hash2b(7)
-      |> BaseX.Base62.encode()
-
-    # Even though identities are the same in both
-    # I might be convinced otherwise later
-    spool(:status, clump_id, :put, {which, hash})
-    hash
-  end
-
-  defp proper_db_path(:identity, clump_id) when byte_size(clump_id) > 0,
-    do: proper_db_path(:identity, "")
-
-  defp proper_db_path(which, clump_id) when is_binary(clump_id) and is_atom(which) do
-    file = Atom.to_string(which) <> ".dets"
-    dir = Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
-    Path.join([dir, clump_id, file]) |> to_charlist
-  end
-
-  defp proper_db_path(_, _), do: raise("Improper clump_id")
 
   @doc false
   def optvals(opts, keys), do: optvals(opts, keys, [])
