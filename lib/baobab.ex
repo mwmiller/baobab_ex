@@ -95,7 +95,7 @@ defmodule Baobab do
 
     first..last
     |> Enum.filter(fn n ->
-      Persistence.manage_content_store(clump_id, {author, log_id, n}, {:entry, :exists})
+      Persistence.content(:entry, :exists, {author, log_id, n}, clump_id)
     end)
     |> Enum.map(fn n -> Baobab.Entry.retrieve(ak, n, opts) end)
   end
@@ -173,7 +173,7 @@ defmodule Baobab do
     |> Lipmaa.cert_pool()
     |> Enum.reject(fn n ->
       n > max or
-        not Persistence.manage_content_store(clump_id, {author, log_id, n}, {:entry, :exists})
+        not Persistence.content(:entry, :exists, {author, log_id, n}, clump_id)
     end)
   end
 

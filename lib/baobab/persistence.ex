@@ -81,17 +81,18 @@ defmodule Baobab.Persistence do
     hash
   end
 
-  @doc false
-  def manage_content_store(clump_id, entry_id, {name, how}),
-    do: manage_content_store(clump_id, entry_id, {name, how, nil})
+  @doc """
+  Deal with the peristed bamboo content
+  """
+  def content(subject, action, entry_id, clump_id, addlval \\ nil)
 
-  def manage_content_store(clump_id, {author, log_id, seq}, {name, how, content}) do
+  def content(subject, action, {author, log_id, seq}, clump_id, addlval) do
     store(:content, clump_id, :open)
     key = {author |> Baobab.Identity.as_base62(), log_id, seq}
     curr = perform_action(:content, :get, key)
 
     actval =
-      case {how, curr} do
+      case {action, curr} do
         {:delete, nil} ->
           :ok
 
@@ -99,30 +100,30 @@ defmodule Baobab.Persistence do
           perform_action(:content, :delete, key)
 
         {:contents, nil} ->
-          case name do
+          case subject do
             :both -> {:error, :error}
             _ -> :error
           end
 
         {:contents, map} ->
-          case name do
+          case subject do
             :both -> {Map.get(map, :entry, :error), Map.get(map, :payload, :error)}
             key -> Map.get(map, key, :error)
           end
 
-        {:hash, %{^name => c}} ->
+        {:hash, %{^subject => c}} ->
           YAMFhash.create(c, 0)
 
         {:write, prev} ->
-          case name do
+          case subject do
             :both ->
-              {entry, payload} = content
+              {entry, payload} = addlval
 
               perform_action(:content, :put, {key, %{:entry => entry, :payload => payload}})
 
             map_key ->
               map = if is_nil(prev), do: %{}, else: prev
-              perform_action(:content, :put, {key, Map.merge(map, %{map_key => content})})
+              perform_action(:content, :put, {key, Map.merge(map, %{map_key => addlval})})
           end
 
         {:exists, nil} ->
