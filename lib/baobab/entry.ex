@@ -74,32 +74,43 @@ defmodule Baobab.Entry do
     end
   end
 
-  def store(%Baobab.Entry{} = entry, clump_id, true) do
-    case Validator.validate(clump_id, entry) do
-      %Baobab.Entry{
-        tag: tag,
-        author: author,
-        log_id: log_id,
-        seqnum: seq,
-        lipmaalink: ll,
-        backlink: bl,
-        payload: payload,
-        payload_hash: ph,
-        sig: sig,
-        size: size
-      } ->
-        contents =
-          tag <>
-            author <>
-            Varu64.encode(log_id) <>
-            Varu64.encode(seq) <> option(ll) <> option(bl) <> Varu64.encode(size) <> ph <> sig
+  def store(%Baobab.Entry{author: author} = entry, clump_id, true) do
+    case Baobab.ClumpMeta.blocked_author?(author, clump_id) do
+      true ->
+        {:error, "Refusing to store for blocked author"}
 
-        Persistence.content(:both, :write, {author, log_id, seq}, clump_id, {contents, payload})
+      false ->
+        case Validator.validate(clump_id, entry) do
+          %Baobab.Entry{
+            tag: tag,
+            log_id: log_id,
+            seqnum: seq,
+            lipmaalink: ll,
+            backlink: bl,
+            payload: payload,
+            payload_hash: ph,
+            sig: sig,
+            size: size
+          } ->
+            contents =
+              tag <>
+                author <>
+                Varu64.encode(log_id) <>
+                Varu64.encode(seq) <> option(ll) <> option(bl) <> Varu64.encode(size) <> ph <> sig
 
-        entry
+            Persistence.content(
+              :both,
+              :write,
+              {author, log_id, seq},
+              clump_id,
+              {contents, payload}
+            )
 
-      error ->
-        error
+            entry
+
+          error ->
+            error
+        end
     end
   end
 

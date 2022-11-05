@@ -1,6 +1,6 @@
 defmodule BaobabTest do
   use ExUnit.Case
-  alias Baobab.{Identity, Interchange, Persistence}
+  alias Baobab.{ClumpMeta, Identity, Interchange, Persistence}
   doctest Baobab
 
   # I do not see the case for a config variable for this
@@ -165,5 +165,40 @@ defmodule BaobabTest do
     assert [{b62first, 0, 1}] == Baobab.purge("first", log_id: 42)
 
     assert [] == Baobab.purge(:all, log_id: :all)
+  end
+
+  test "blockade" do
+    dude = Identity.create("dude")
+    guy = Identity.create("guy")
+    Baobab.append_log("Hi, you all suck", "dude", log_id: 0)
+    Baobab.append_log("Hi, you all suck", "dude", log_id: 1)
+    Baobab.append_log("Hi, you all suck", "dude", log_id: 2)
+    Baobab.append_log("Hi, you all suck", "dude", log_id: 3)
+    Baobab.append_log("dude sure is spammy", "guy")
+
+    assert 5 == Baobab.stored_info() |> Enum.count()
+
+    assert {:error, "May not block identities controlled by Baobab"} ==
+             ClumpMeta.block_author(dude)
+
+    assert [] == ClumpMeta.list_blocked_authors()
+
+    Identity.drop("dude")
+    assert 5 == Baobab.stored_info() |> Enum.count()
+
+    assert {:error, "Improper identity supplied"} == ClumpMeta.block_author("dude")
+    assert :ok == ClumpMeta.block_author(dude)
+    assert [dude] == ClumpMeta.list_blocked_authors()
+    assert ClumpMeta.blocked_author?(dude)
+    refute ClumpMeta.blocked_author?(guy)
+    assert [{guy, 0, 1}] == Baobab.stored_info()
+    assert :ok == ClumpMeta.unblock_author(guy)
+    assert [dude] == ClumpMeta.list_blocked_authors()
+    assert {:error, "Improper identity supplied"} == ClumpMeta.unblock_author("dude")
+    assert [dude] == ClumpMeta.list_blocked_authors()
+    assert :ok == ClumpMeta.block_author(dude)
+    assert [dude] == ClumpMeta.list_blocked_authors()
+    assert :ok == ClumpMeta.unblock_author(dude)
+    assert [] == ClumpMeta.list_blocked_authors()
   end
 end

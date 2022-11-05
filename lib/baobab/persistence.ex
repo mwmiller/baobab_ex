@@ -63,6 +63,8 @@ defmodule Baobab.Persistence do
 
   defp recompute_hash(clump_id, table)
   defp recompute_hash(_, :status), do: "nahnah"
+  # This one should probably have this available at some point
+  defp recompute_hash(_, :metadata), do: "nahnah"
 
   defp recompute_hash(clump_id, which) do
     stuff =
