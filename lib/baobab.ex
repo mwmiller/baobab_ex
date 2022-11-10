@@ -2,7 +2,7 @@ defmodule Baobab do
   alias Baobab.{Entry, Identity, Interchange, Persistence}
 
   @moduledoc """
-  Baobab is a pure Elixir implementation of the 
+  Baobab is an Elixir implementation of the 
   [Bamboo](https://github.com/AljoschaMeyer/bamboo) append-only log.
 
   It is fairly opinionated about the DETS persistence of the logs.

@@ -4,7 +4,7 @@ defmodule Baobab.MixProject do
   def project do
     [
       app: :baobab,
-      version: "0.15.0",
+      version: "0.15.1",
       elixir: "~> 1.13",
       name: "Baobab",
       source_url: "https://github.com/mwmiller/baobab_ex",
@@ -38,7 +38,7 @@ defmodule Baobab.MixProject do
 
   defp description do
     """
-    Baobab - Bamboo append-only logs in pure Elixir
+    Bamboo append-only logs
     """
   end
 

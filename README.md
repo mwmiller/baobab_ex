@@ -1,6 +1,6 @@
 # Baobab
 
-A pure Elixir implementation of [Bamboo](https://github.com/AljoschaMeyer/bamboo) append-only log.
+An Elixir implementation of [Bamboo](https://github.com/AljoschaMeyer/bamboo) append-only log.
 
 It stores entries and identities in a filesystem spool.
 
