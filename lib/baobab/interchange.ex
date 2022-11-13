@@ -51,6 +51,31 @@ defmodule Baobab.Interchange do
       [] -> notours()
       logs -> import_store_logs(logs)
     end
+
+    # Adding this made old exports incompatible.
+    # Can be resolved with an empty `metadata.json` file if it comes up
+    case Path.wildcard(Path.join([top, "content/*/metadata.json"])) do
+      [] -> notours()
+      md -> import_store_metadata(md)
+    end
+  end
+
+  defp import_store_metadata([]), do: :ok
+
+  defp import_store_metadata([json_file | rest]) do
+    cid = clump_from_path(json_file)
+
+    case json_file |> File.read!() |> Jason.decode!() do
+      %{"blocked_authors" => alist} ->
+        for blockee <- alist do
+          Baobab.ClumpMeta.block_author(blockee, cid)
+        end
+
+      _ ->
+        notours()
+    end
+
+    import_store_metadata(rest)
   end
 
   defp import_store_identities([]), do: :ok
@@ -90,7 +115,9 @@ defmodule Baobab.Interchange do
 
   Produces:
     - JSON keyfiles for each identity
-    - Per clump directories containing a file for each author, `log_id` pair
+    - Per clump directories containing
+      - a file for each author, `log_id` pair
+      - a JSON metadata file
   """
   def export_store(path) do
     where = Path.expand(path)
@@ -130,7 +157,21 @@ defmodule Baobab.Interchange do
 
   defp export_store_clumps([cid | rest], path) do
     export_store_clump(cid, path)
+    export_clump_metadata(cid, path)
     export_store_clumps(rest, path)
+  end
+
+  defp export_clump_metadata(cid, path) do
+    file = Path.join([path, cid, "metadata.json"])
+
+    {:ok, json} =
+      %{
+        "blocked_authors" => Baobab.ClumpMeta.list_blocked_authors(cid)
+      }
+      |> Jason.encode()
+
+    :ok = File.write(file, json)
+    :ok = File.chmod(file, 0o600)
   end
 
   defp export_store_clump(cid, path) do

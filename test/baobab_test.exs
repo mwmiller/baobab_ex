@@ -4,7 +4,7 @@ defmodule BaobabTest do
   doctest Baobab
 
   # I do not see the case for a config variable for this
-  @export_dir "/tmp/bao_text_export"
+  @export_dir "/tmp/bao_test_export"
 
   setup do
     spool = Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
@@ -35,7 +35,14 @@ defmodule BaobabTest do
     # We demand at least one identity, so...
     Identity.create("rando")
     idhash = Persistence.current_hash(:identity)
+    :ok = Baobab.ClumpMeta.block_author("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
+
+    assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] =
+             Baobab.ClumpMeta.list_blocked_authors()
+
     assert @export_dir == Interchange.export_store(@export_dir)
+    :ok = Baobab.ClumpMeta.unblock_author("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
+    assert [] == Baobab.ClumpMeta.list_blocked_authors()
     assert [] == Baobab.purge(:all, log_id: :all)
     refute "4XwOPI3gAo" == Persistence.current_hash(:content)
     Identity.drop("rando")
@@ -43,6 +50,9 @@ defmodule BaobabTest do
     assert :ok == Interchange.import_store(@export_dir)
     assert "4XwOPI3gAo" == Persistence.current_hash(:content)
     assert idhash == Persistence.current_hash(:identity)
+
+    assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] =
+             Baobab.ClumpMeta.list_blocked_authors()
   end
 
   test "local use" do
