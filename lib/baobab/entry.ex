@@ -74,8 +74,8 @@ defmodule Baobab.Entry do
     end
   end
 
-  def store(%Baobab.Entry{author: author} = entry, clump_id, true) do
-    case Baobab.ClumpMeta.blocked_author?(author, clump_id) do
+  def store(%Baobab.Entry{author: author, log_id: log_id} = entry, clump_id, true) do
+    case Baobab.ClumpMeta.blocked?({author, log_id, 1}, clump_id) do
       true ->
         {:error, "Refusing to store for blocked author"}
 

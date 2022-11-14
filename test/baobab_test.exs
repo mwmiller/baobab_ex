@@ -35,14 +35,13 @@ defmodule BaobabTest do
     # We demand at least one identity, so...
     Identity.create("rando")
     idhash = Persistence.current_hash(:identity)
-    :ok = Baobab.ClumpMeta.block_author("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
+    :ok = Baobab.ClumpMeta.block("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
 
-    assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] =
-             Baobab.ClumpMeta.list_blocked_authors()
+    assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] = Baobab.ClumpMeta.blocks_list()
 
     assert @export_dir == Interchange.export_store(@export_dir)
-    :ok = Baobab.ClumpMeta.unblock_author("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
-    assert [] == Baobab.ClumpMeta.list_blocked_authors()
+    :ok = Baobab.ClumpMeta.unblock("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
+    assert [] == Baobab.ClumpMeta.blocks_list()
     assert [] == Baobab.purge(:all, log_id: :all)
     refute "4XwOPI3gAo" == Persistence.current_hash(:content)
     Identity.drop("rando")
@@ -51,8 +50,7 @@ defmodule BaobabTest do
     assert "4XwOPI3gAo" == Persistence.current_hash(:content)
     assert idhash == Persistence.current_hash(:identity)
 
-    assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] =
-             Baobab.ClumpMeta.list_blocked_authors()
+    assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] = Baobab.ClumpMeta.blocks_list()
   end
 
   test "local use" do
@@ -189,26 +187,26 @@ defmodule BaobabTest do
     assert 5 == Baobab.stored_info() |> Enum.count()
 
     assert {:error, "May not block identities controlled by Baobab"} ==
-             ClumpMeta.block_author(dude)
+             ClumpMeta.block(dude)
 
-    assert [] == ClumpMeta.list_blocked_authors()
+    assert [] == ClumpMeta.blocks_list()
 
     Identity.drop("dude")
     assert 5 == Baobab.stored_info() |> Enum.count()
 
-    assert {:error, "Improper identity supplied"} == ClumpMeta.block_author("dude")
-    assert :ok == ClumpMeta.block_author(dude)
-    assert [dude] == ClumpMeta.list_blocked_authors()
-    assert ClumpMeta.blocked_author?(dude)
-    refute ClumpMeta.blocked_author?(guy)
+    assert {:error, "Improper author supplied"} == ClumpMeta.block("dude")
+    assert :ok == ClumpMeta.block(dude)
+    assert [dude] == ClumpMeta.blocks_list()
+    assert ClumpMeta.blocked?(dude)
+    refute ClumpMeta.blocked?(guy)
     assert [{guy, 0, 1}] == Baobab.stored_info()
-    assert :ok == ClumpMeta.unblock_author(guy)
-    assert [dude] == ClumpMeta.list_blocked_authors()
-    assert {:error, "Improper identity supplied"} == ClumpMeta.unblock_author("dude")
-    assert [dude] == ClumpMeta.list_blocked_authors()
-    assert :ok == ClumpMeta.block_author(dude)
-    assert [dude] == ClumpMeta.list_blocked_authors()
-    assert :ok == ClumpMeta.unblock_author(dude)
-    assert [] == ClumpMeta.list_blocked_authors()
+    assert :ok == ClumpMeta.unblock(guy)
+    assert [dude] == ClumpMeta.blocks_list()
+    assert :ok == ClumpMeta.unblock("dude")
+    assert [dude] == ClumpMeta.blocks_list()
+    assert :ok == ClumpMeta.block(dude)
+    assert [dude] == ClumpMeta.blocks_list()
+    assert :ok == ClumpMeta.unblock(dude)
+    assert [] == ClumpMeta.blocks_list()
   end
 end

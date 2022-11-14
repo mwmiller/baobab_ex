@@ -66,17 +66,26 @@ defmodule Baobab.Interchange do
     cid = clump_from_path(json_file)
 
     case json_file |> File.read!() |> Jason.decode!() do
-      %{"blocked_authors" => alist} ->
-        for blockee <- alist do
-          Baobab.ClumpMeta.block_author(blockee, cid)
-        end
-
-      _ ->
-        notours()
+      %{"blocks" => blist} -> perform_blocks(blist, cid)
+      _ -> notours()
     end
 
     import_store_metadata(rest)
   end
+
+  defp perform_blocks([], _), do: :ok
+
+  defp perform_blocks([[a, l] | rest], cid) do
+    Baobab.ClumpMeta.block({a, l}, cid)
+    perform_blocks(rest, cid)
+  end
+
+  defp perform_blocks([i | rest], cid) when is_binary(i) or is_integer(i) do
+    Baobab.ClumpMeta.block(i, cid)
+    perform_blocks(rest, cid)
+  end
+
+  defp perform_blocks([_ | rest], cid), do: perform_blocks(rest, cid)
 
   defp import_store_identities([]), do: :ok
 
@@ -165,9 +174,7 @@ defmodule Baobab.Interchange do
     file = Path.join([path, cid, "metadata.json"])
 
     {:ok, json} =
-      %{
-        "blocked_authors" => Baobab.ClumpMeta.list_blocked_authors(cid)
-      }
+      %{"blocks" => Baobab.ClumpMeta.blocks_list(cid)}
       |> Jason.encode()
 
     :ok = File.write(file, json)

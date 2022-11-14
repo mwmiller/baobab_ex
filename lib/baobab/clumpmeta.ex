@@ -6,106 +6,172 @@ defmodule Baobab.ClumpMeta do
   May be useful between consumers to communicate intent
   """
 
+  @max_log :math.pow(2, 64) |> trunc
+  @fun_err {:error, "Unresolvable parameters"}
+
   @doc """
-  Block the given log author on the supplied clump_id
+  Create a block of a given type:
 
-  Authors should be supplied as 32 byte-raw or 43-byte base62-encoded values.
-
-  May not be applied to member of local `identities`
+  - author: 32 byte-raw or 43-byte base62-encoded value
+  - log_id: 64 byte unsigned integer
+  - log_spec: `{author, log_id}`
   """
-  @spec block_author(binary, binary) :: :ok | {:error, String.t()}
-  def block_author(author, clump_id \\ "default") do
-    case Identity.as_base62(author) do
+  @spec block(term, binary) :: :ok | {:error, String.t()}
+  def block(item, clump_id \\ "default")
+
+  def block(author, clump_id) when is_binary(author) do
+    with {:ok, id} <- check_author(author),
+         {:ok, cid} <- check_clump_id(clump_id) do
+      do_block(id, cid)
+      Baobab.purge(author, log_id: :all, clump_id: cid)
+      :ok
+    else
+      err -> err
+    end
+  end
+
+  def block(log_id, clump_id) when is_integer(log_id) do
+    with {:ok, lid} <- check_log_id(log_id),
+         {:ok, cid} <- check_clump_id(clump_id) do
+      do_block(lid, cid)
+      Baobab.purge(:all, log_id: lid, clump_id: cid)
+      :ok
+    else
+      err -> err
+    end
+  end
+
+  def block({author, log_id}, clump_id) do
+    with {:ok, id} <- check_author(author),
+         {:ok, lid} <- check_log_id(log_id),
+         {:ok, cid} <- check_clump_id(clump_id) do
+      do_block({id, lid}, cid)
+      Baobab.purge(id, log_id: lid, clump_id: cid)
+      :ok
+    else
+      err -> err
+    end
+  end
+
+  def block(_, _, _), do: @fun_err
+
+  defp do_block(val, cid) do
+    new =
+      case Persistence.action(:metadata, cid, :get, :blocks) do
+        %MapSet{} = curr -> MapSet.put(curr, val)
+        nil -> MapSet.new([val])
+      end
+
+    Persistence.action(:metadata, cid, :put, {:blocks, new})
+  end
+
+  defp check_clump_id(cid) do
+    case Enum.any?(Baobab.clumps(), fn c -> c == cid end) do
+      true -> {:ok, cid}
+      false -> {:error, "Unknown clump_id"}
+    end
+  end
+
+  defp check_author(a) do
+    case Identity.as_base62(a) do
       {:error, _} ->
-        {:error, "Improper identity supplied"}
+        {:error, "Improper author supplied"}
 
       id ->
         case Enum.any?(Baobab.Identity.list(), fn {_n, k} -> k == id end) do
-          true ->
-            {:error, "May not block identities controlled by Baobab"}
-
-          false ->
-            new =
-              case Persistence.action(:metadata, clump_id, :get, :author_blocks) do
-                %MapSet{} = curr -> MapSet.put(curr, author)
-                nil -> MapSet.new([author])
-              end
-
-            Persistence.action(:metadata, clump_id, :put, {:author_blocks, new})
-            # We're not going to take new entries, let's drop the old.
-            Baobab.purge(author, log_id: :all, clump_id: clump_id)
-            :ok
+          true -> {:error, "May not block identities controlled by Baobab"}
+          false -> {:ok, id}
         end
     end
   end
 
+  defp check_log_id(lid) when is_integer(lid) and lid >= 0 and lid <= @max_log, do: {:ok, lid}
+  defp check_log_id(_), do: {:error, "Improper log_id"}
+
   @doc """
-  Unblock the given log author on the supplied clump_id
-
-  Authors should be supplied as 32 byte-raw or 43-byte base6-encoded values.
+  Remove an extant block specified as per `block/2`
   """
-  @spec unblock_author(binary, binary) :: :ok | {:error, String.t()}
-  def unblock_author(author, clump_id \\ "default") do
-    case Identity.as_base62(author) do
-      {:error, _} ->
-        {:error, "Improper identity supplied"}
+  @spec unblock(term, binary) :: :ok | {:error, String.t()}
+  def unblock(item, clump_id \\ "default")
 
-      id ->
-        case Persistence.action(:metadata, clump_id, :get, :author_blocks) do
-          nil ->
-            :ok
+  # We can be more liberal saying we'll remove things we never saved.
+  def unblock(item, clump_id) do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      do_unblock(item, cid)
+    else
+      err -> err
+    end
+  end
 
-          %MapSet{} = curr ->
-            Persistence.action(
-              :metadata,
-              clump_id,
-              :put,
-              {:author_blocks, MapSet.delete(curr, id)}
-            )
+  defp do_unblock(val, cid) do
+    case Persistence.action(:metadata, cid, :get, :blocks) do
+      nil ->
+        :ok
 
-            :ok
-        end
+      %MapSet{} = curr ->
+        Persistence.action(
+          :metadata,
+          cid,
+          :put,
+          {:blocks, MapSet.delete(curr, val)}
+        )
+
+        :ok
     end
   end
 
   @doc """
-  Returns a boolean indicating whether a given author is blocked on the supplied clump
-  """
-  @spec blocked_author?(binary) :: boolean | {:error, String.t()}
-  def blocked_author?(author, clump_id \\ "default") do
-    case Identity.as_base62(author) do
-      {:error, _} ->
-        {:error, "Improper identity supplied"}
+  Returns a boolean indicating whether the supplied spec is blocked on the supplied clump
 
-      id ->
-        case Persistence.action(:metadata, clump_id, :get, :author_blocks) do
-          nil -> false
-          ms -> MapSet.member?(ms, id)
-        end
+  Includes the specifications from `block/2` and `{author, log_id, seq_num}`
+  """
+  @spec blocked?(term) :: boolean | {:error, String.t()}
+  def blocked?(item, clump_id \\ "default")
+
+  def blocked?({author, log_id, _seq}, clump_id) do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      ms = get_blocks(cid)
+      Enum.any?([author, log_id, {author, log_id}], fn ls -> MapSet.member?(ms, ls) end)
+    else
+      err -> err
+    end
+  end
+
+  # We don't check the values closely here because we aren't going to 
+  # mutate anything based on them the can give us any nonsense and
+  # we can just say it's not in the list
+  def blocked?(item, clump_id) do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      do_blocked_check(item, cid)
+    else
+      err -> err
+    end
+  end
+
+  defp do_blocked_check(val, clump_id), do: clump_id |> get_blocks |> MapSet.member?(val)
+
+  defp get_blocks(cid) do
+    case Persistence.action(:metadata, cid, :get, :blocks) do
+      nil -> MapSet.new()
+      ms -> ms
     end
   end
 
   @doc """
-  Lists currently blocked authors on the supplied clump_id
-
-  Results are returned as the base62-encoded identity
+  Lists current blocks on the supplied clump_id
   """
-  @spec list_blocked_authors(binary) :: [binary]
-  def list_blocked_authors(clump_id \\ "default") do
-    case Persistence.action(:metadata, clump_id, :get, :author_blocks) do
-      nil -> []
-      ms -> MapSet.to_list(ms)
+  @spec blocks_list(binary) :: [binary] | {:error, String.t()}
+  def blocks_list(clump_id \\ "default") do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      cid
+      |> get_blocks()
+      |> MapSet.to_list()
+      |> Enum.map(fn
+        {a, l} -> [a, l]
+        i -> i
+      end)
+    else
+      err -> err
     end
-  end
-
-  @doc false
-  # Consumers shouldn't need to run this independently, I am willing to be
-  # proven wrong on this point.
-  def purge_blocked_authors(clump_id \\ "default") do
-    clump_id
-    |> list_blocked_authors()
-    |> Enum.map(fn a -> Baobab.purge(a, log_id: :all, clump_id: clump_id) end)
-
-    :ok
   end
 end
