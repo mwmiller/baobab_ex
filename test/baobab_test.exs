@@ -35,13 +35,12 @@ defmodule BaobabTest do
     # We demand at least one identity, so...
     Identity.create("rando")
     idhash = Persistence.current_hash(:identity)
-    :ok = Baobab.ClumpMeta.block("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
 
-    assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] = Baobab.ClumpMeta.blocks_list()
+    assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] ==
+             Baobab.ClumpMeta.block("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
 
     assert @export_dir == Interchange.export_store(@export_dir)
-    :ok = Baobab.ClumpMeta.unblock("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
-    assert [] == Baobab.ClumpMeta.blocks_list()
+    assert [] == Baobab.ClumpMeta.unblock("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
     assert [] == Baobab.purge(:all, log_id: :all)
     refute "4XwOPI3gAo" == Persistence.current_hash(:content)
     Identity.drop("rando")
@@ -154,6 +153,13 @@ defmodule BaobabTest do
 
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF", 5)
     assert [] = Baobab.log_at("0123456789ABCDEF0123456789ABCDEF0123456789A", 5)
+
+    assert {:error, "Improper author supplied"} == ClumpMeta.block({"dude", 2})
+    assert {:error, "Improper log_id"} == ClumpMeta.block(-1, "FakeClumpName")
+    assert {:error, "Unknown clump_id"} == ClumpMeta.block(2, "FakeClumpName")
+
+    assert {:error, "May not block identities controlled by Baobab"} =
+             ClumpMeta.block({new_guy, 2})
   end
 
   test "purgeitory" do
@@ -195,18 +201,29 @@ defmodule BaobabTest do
     assert 5 == Baobab.stored_info() |> Enum.count()
 
     assert {:error, "Improper author supplied"} == ClumpMeta.block("dude")
-    assert :ok == ClumpMeta.block(dude)
-    assert [dude] == ClumpMeta.blocks_list()
+    assert [dude] == ClumpMeta.block(dude)
+    assert [3, dude] == ClumpMeta.block(3)
+    assert true == ClumpMeta.blocked?({guy, 3, 1})
     assert ClumpMeta.blocked?(dude)
     refute ClumpMeta.blocked?(guy)
     assert [{guy, 0, 1}] == Baobab.stored_info()
-    assert :ok == ClumpMeta.unblock(guy)
-    assert [dude] == ClumpMeta.blocks_list()
-    assert :ok == ClumpMeta.unblock("dude")
-    assert [dude] == ClumpMeta.blocks_list()
-    assert :ok == ClumpMeta.block(dude)
-    assert [dude] == ClumpMeta.blocks_list()
-    assert :ok == ClumpMeta.unblock(dude)
+    # Unblocking nonexistent changes nothing
+    assert [3, dude] == ClumpMeta.unblock(guy)
+    # Unblocking improper identitifier changes nothing
+    assert [3, dude] == ClumpMeta.unblock("dude")
+    # Reblocking extant changes nothing
+    assert [3, dude] == ClumpMeta.block(dude)
+    assert [3, {dude, 2}, dude] = ClumpMeta.block({dude, 2})
+    assert [] == ClumpMeta.filter_blocked([{guy, 3, 1}, {guy, 3, 2}, {dude, 3, 1}, {dude, 2, 1}])
+    # Removing more general block does nto remove more specific
+    assert [3, {dude, 2}] == ClumpMeta.unblock(dude)
+    assert [] == ClumpMeta.filter_blocked([{guy, 3, 1}, {guy, 3, 2}, {dude, 3, 1}, {dude, 2, 1}])
+    assert [3] == ClumpMeta.unblock({dude, 2})
+
+    assert [{dude, 2, 1}] ==
+             ClumpMeta.filter_blocked([{guy, 3, 1}, {guy, 3, 2}, {dude, 3, 1}, {dude, 2, 1}])
+
+    assert [] == ClumpMeta.unblock(3)
     assert [] == ClumpMeta.blocks_list()
   end
 end

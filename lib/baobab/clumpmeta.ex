@@ -15,16 +15,17 @@ defmodule Baobab.ClumpMeta do
   - author: 32 byte-raw or 43-byte base62-encoded value
   - log_id: 64 byte unsigned integer
   - log_spec: `{author, log_id}`
+
+  Returns the current block list
   """
-  @spec block(term, binary) :: :ok | {:error, String.t()}
+  @spec block(term, binary) :: [term] | {:error, String.t()}
   def block(item, clump_id \\ "default")
 
   def block(author, clump_id) when is_binary(author) do
     with {:ok, id} <- check_author(author),
          {:ok, cid} <- check_clump_id(clump_id) do
-      do_block(id, cid)
       Baobab.purge(author, log_id: :all, clump_id: cid)
-      :ok
+      do_block(id, cid)
     else
       err -> err
     end
@@ -33,9 +34,8 @@ defmodule Baobab.ClumpMeta do
   def block(log_id, clump_id) when is_integer(log_id) do
     with {:ok, lid} <- check_log_id(log_id),
          {:ok, cid} <- check_clump_id(clump_id) do
-      do_block(lid, cid)
       Baobab.purge(:all, log_id: lid, clump_id: cid)
-      :ok
+      do_block(lid, cid)
     else
       err -> err
     end
@@ -45,9 +45,8 @@ defmodule Baobab.ClumpMeta do
     with {:ok, id} <- check_author(author),
          {:ok, lid} <- check_log_id(log_id),
          {:ok, cid} <- check_clump_id(clump_id) do
-      do_block({id, lid}, cid)
       Baobab.purge(id, log_id: lid, clump_id: cid)
-      :ok
+      do_block({id, lid}, cid)
     else
       err -> err
     end
@@ -63,6 +62,7 @@ defmodule Baobab.ClumpMeta do
       end
 
     Persistence.action(:metadata, cid, :put, {:blocks, new})
+    MapSet.to_list(new)
   end
 
   defp check_clump_id(cid) do
@@ -90,6 +90,8 @@ defmodule Baobab.ClumpMeta do
 
   @doc """
   Remove an extant block specified as per `block/2`
+
+  Returns the current block list
   """
   @spec unblock(term, binary) :: :ok | {:error, String.t()}
   def unblock(item, clump_id \\ "default")
@@ -109,14 +111,16 @@ defmodule Baobab.ClumpMeta do
         :ok
 
       %MapSet{} = curr ->
+        new = MapSet.delete(curr, val)
+
         Persistence.action(
           :metadata,
           cid,
           :put,
-          {:blocks, MapSet.delete(curr, val)}
+          {:blocks, new}
         )
 
-        :ok
+        MapSet.to_list(new)
     end
   end
 
@@ -160,7 +164,7 @@ defmodule Baobab.ClumpMeta do
   @doc """
   Lists current blocks on the supplied clump_id
   """
-  @spec blocks_list(binary) :: [binary] | {:error, String.t()}
+  @spec blocks_list(binary) :: [term] | {:error, String.t()}
   def blocks_list(clump_id \\ "default") do
     with {:ok, cid} <- check_clump_id(clump_id) do
       cid
@@ -169,6 +173,29 @@ defmodule Baobab.ClumpMeta do
       |> Enum.map(fn
         {a, l} -> [a, l]
         i -> i
+      end)
+    else
+      err -> err
+    end
+  end
+
+  @doc """
+  Filter out blocked clump logs from a supplied list of entry
+  tuples ({`author`, `log_id`, `seq_num`})
+  """
+  @spec filter_blocked([tuple], binary) :: [tuple] | {:error, String.t()}
+  def filter_blocked(entries, clump_id \\ "default") do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      ms = get_blocks(cid)
+
+      Enum.reject(entries, fn
+        {author, log_id, _seq} ->
+          Enum.any?([author, log_id, {author, log_id}], fn
+            ls -> MapSet.member?(ms, ls)
+          end)
+
+        _ ->
+          true
       end)
     else
       err -> err
