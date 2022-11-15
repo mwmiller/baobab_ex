@@ -134,8 +134,7 @@ defmodule Baobab.ClumpMeta do
 
   def blocked?({author, log_id, _seq}, clump_id) do
     with {:ok, cid} <- check_clump_id(clump_id) do
-      ms = get_blocks(cid)
-      Enum.any?([author, log_id, {author, log_id}], fn ls -> MapSet.member?(ms, ls) end)
+      check_block(get_blocks(cid), author, log_id, 1)
     else
       err -> err
     end
@@ -186,19 +185,27 @@ defmodule Baobab.ClumpMeta do
   @spec filter_blocked([tuple], binary) :: [tuple] | {:error, String.t()}
   def filter_blocked(entries, clump_id \\ "default") do
     with {:ok, cid} <- check_clump_id(clump_id) do
-      ms = get_blocks(cid)
-
-      Enum.reject(entries, fn
-        {author, log_id, _seq} ->
-          Enum.any?([author, log_id, {author, log_id}], fn
-            ls -> MapSet.member?(ms, ls)
-          end)
-
-        _ ->
-          true
-      end)
+      block_filter(entries, get_blocks(cid), [])
     else
       err -> err
     end
   end
+
+  defp block_filter([], _, acc), do: Enum.reverse(acc)
+
+  defp block_filter([entry | rest], ms, acc) do
+    {a, l, e} =
+      case entry do
+        [a, l, e] -> {a, l, e}
+        {a, l, e} -> {a, l, e}
+      end
+
+    case check_block(ms, a, l, e) do
+      true -> block_filter(rest, ms, acc)
+      false -> block_filter(rest, ms, [entry | acc])
+    end
+  end
+
+  defp check_block(ms, a, l, _e),
+    do: Enum.any?([a, l, {a, l}], fn ls -> MapSet.member?(ms, ls) end)
 end
