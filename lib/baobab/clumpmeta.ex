@@ -13,7 +13,7 @@ defmodule Baobab.ClumpMeta do
   Create a block of a given type:
 
   - author: 32 byte-raw or 43-byte base62-encoded value
-  - log_id: 64 byte unsigned integer
+  - log_id: 64 bit unsigned integer
   - log_spec: `{author, log_id}`
 
   Returns the current block list
@@ -24,8 +24,14 @@ defmodule Baobab.ClumpMeta do
   def block(author, clump_id) when is_binary(author) do
     with {:ok, id} <- check_author(author),
          {:ok, cid} <- check_clump_id(clump_id) do
-      Baobab.purge(author, log_id: :all, clump_id: cid)
-      do_block(id, cid)
+      case blocked?(id, cid) do
+        false ->
+          Baobab.purge(author, log_id: :all, clump_id: cid)
+          do_block(id, cid)
+
+        true ->
+          blocks_list(cid)
+      end
     else
       err -> err
     end
@@ -34,8 +40,14 @@ defmodule Baobab.ClumpMeta do
   def block(log_id, clump_id) when is_integer(log_id) do
     with {:ok, lid} <- check_log_id(log_id),
          {:ok, cid} <- check_clump_id(clump_id) do
-      Baobab.purge(:all, log_id: lid, clump_id: cid)
-      do_block(lid, cid)
+      case blocked?(lid, cid) do
+        false ->
+          Baobab.purge(:all, log_id: lid, clump_id: cid)
+          do_block(lid, cid)
+
+        true ->
+          blocks_list(cid)
+      end
     else
       err -> err
     end
@@ -45,8 +57,14 @@ defmodule Baobab.ClumpMeta do
     with {:ok, id} <- check_author(author),
          {:ok, lid} <- check_log_id(log_id),
          {:ok, cid} <- check_clump_id(clump_id) do
-      Baobab.purge(id, log_id: lid, clump_id: cid)
-      do_block({id, lid}, cid)
+      case blocked?({author, log_id}, cid) do
+        false ->
+          Baobab.purge(id, log_id: lid, clump_id: cid)
+          do_block({id, lid}, cid)
+
+        true ->
+          blocks_list(cid)
+      end
     else
       err -> err
     end
