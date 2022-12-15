@@ -84,7 +84,7 @@ defmodule Baobab do
   """
   def log_range(author, range, options \\ [])
 
-  def log_range(_, {first, last}, _) when first < 2 or last < first,
+  def log_range(_, {first, last}, _) when first < 1 or last < first,
     do: {:error, "Improper range specification"}
 
   def log_range(author, {first, last}, options) do
