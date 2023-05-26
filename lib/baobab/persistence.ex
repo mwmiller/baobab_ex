@@ -56,8 +56,8 @@ defmodule Baobab.Persistence do
 
   def current_hash(which, clump_id) do
     case action(:status, clump_id, :get, {clump_id, which}) do
-      [{{^clump_id, ^which}, hash}] -> hash
-      _ -> recompute_hash(clump_id, which)
+      nil -> recompute_hash(clump_id, which)
+      hash -> hash
     end
   end
 
@@ -81,7 +81,7 @@ defmodule Baobab.Persistence do
 
     # Even though identities are the same in both
     # I might be convinced otherwise later
-    action(:status, clump_id, :put, {which, hash})
+    action(:status, clump_id, :put, {{clump_id, which}, hash})
     hash
   end
 
