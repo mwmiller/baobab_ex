@@ -91,57 +91,51 @@ defmodule Baobab.Persistence do
   def content(subject, action, entry_id, clump_id, addlval \\ nil)
 
   def content(subject, action, {author, log_id, seq}, clump_id, addlval) do
-    store(:content, clump_id, :open)
     key = {author |> Identity.as_base62(), log_id, seq}
-    curr = perform_action(:content, :get, key)
+    curr = action(:content, clump_id, :get, key)
 
-    actval =
-      case {action, curr} do
-        {:delete, nil} ->
-          :ok
+    case {action, curr} do
+      {:delete, nil} ->
+        :ok
 
-        {:delete, _} ->
-          perform_action(:content, :delete, key)
+      {:delete, _} ->
+        action(:content, clump_id, :delete, key)
 
-        {:contents, nil} ->
-          case subject do
-            :both -> {:error, :error}
-            _ -> :error
-          end
+      {:contents, nil} ->
+        case subject do
+          :both -> {:error, :error}
+          _ -> :error
+        end
 
-        {:contents, map} ->
-          case subject do
-            :both -> {Map.get(map, :entry, :error), Map.get(map, :payload, :error)}
-            key -> Map.get(map, key, :error)
-          end
+      {:contents, map} ->
+        case subject do
+          :both -> {Map.get(map, :entry, :error), Map.get(map, :payload, :error)}
+          key -> Map.get(map, key, :error)
+        end
 
-        {:hash, %{^subject => c}} ->
-          YAMFhash.create(c, 0)
+      {:hash, %{^subject => c}} ->
+        YAMFhash.create(c, 0)
 
-        {:write, prev} ->
-          case subject do
-            :both ->
-              {entry, payload} = addlval
+      {:write, prev} ->
+        case subject do
+          :both ->
+            {entry, payload} = addlval
+            action(:content, clump_id, :put, {key, %{:entry => entry, :payload => payload}})
 
-              perform_action(:content, :put, {key, %{:entry => entry, :payload => payload}})
+          map_key ->
+            map = if is_nil(prev), do: %{}, else: prev
+            action(:content, clump_id, :put, {key, Map.merge(map, %{map_key => addlval})})
+        end
 
-            map_key ->
-              map = if is_nil(prev), do: %{}, else: prev
-              perform_action(:content, :put, {key, Map.merge(map, %{map_key => addlval})})
-          end
+      {:exists, nil} ->
+        false
 
-        {:exists, nil} ->
-          false
+      {:exists, _} ->
+        true
 
-        {:exists, _} ->
-          true
-
-        {_, _} ->
-          :error
-      end
-
-    store(:content, clump_id, :close)
-    actval
+      {_, _} ->
+        :error
+    end
   end
 
   @doc false
