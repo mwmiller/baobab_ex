@@ -56,8 +56,48 @@ defmodule Baobab.Persistence do
 
   def current_hash(which, clump_id) do
     case action(:status, clump_id, :get, {clump_id, which}) do
-      nil -> recompute_hash(clump_id, which)
-      hash -> hash
+      {hash, _stuff} ->
+        hash
+
+      _ ->
+        recompute_hash(clump_id, which)
+        current_hash(which, clump_id)
+    end
+  end
+
+  @doc """
+  Retrieve the current stored info which is the max entry for each 
+  stored log
+  """
+  def current_stored_info(clump_id \\ "default")
+
+  def current_stored_info(clump_id) do
+    case action(:status, clump_id, :get, {clump_id, :stored_info}) do
+      {:ok, si} ->
+        si
+
+      _ ->
+        recompute_hash(clump_id, :content)
+        current_stored_info(clump_id)
+    end
+  end
+
+  @doc """
+  Retrieve the current value of the `:content` or `:identity` store.
+
+  No information should be gleaned from any particular hash beyond whether
+  the contents have changed since a previous check.
+  """
+  def current_value(which, clump_id \\ "default")
+
+  def current_value(which, clump_id) do
+    case action(:status, clump_id, :get, {clump_id, which}) do
+      {_hash, stuff} ->
+        stuff
+
+      _ ->
+        recompute_hash(clump_id, which)
+        current_hash(which, clump_id)
     end
   end
 
@@ -69,8 +109,13 @@ defmodule Baobab.Persistence do
   defp recompute_hash(clump_id, which) do
     stuff =
       case which do
-        :content -> Baobab.all_entries(clump_id)
-        :identity -> Baobab.Identity.list()
+        :content ->
+          val = all_entries(clump_id)
+          recompute_si(val, clump_id)
+          val
+
+        :identity ->
+          Baobab.Identity.list()
       end
 
     hash =
@@ -81,8 +126,42 @@ defmodule Baobab.Persistence do
 
     # Even though identities are the same in both
     # I might be convinced otherwise later
-    action(:status, clump_id, :put, {{clump_id, which}, hash})
+    action(:status, clump_id, :put, {{clump_id, which}, {hash, stuff}})
     hash
+  end
+
+  defp all_entries(clump_id) do
+    :content
+    |> action(clump_id, :foldl, fn item, acc ->
+      case item do
+        {e, _} -> [e | acc]
+        _ -> acc
+      end
+    end)
+  end
+
+  defp recompute_si(all_entries, clump_id) do
+    si =
+      all_entries
+      |> Enum.reduce(MapSet.new(), fn {a, l, _}, c ->
+        MapSet.put(c, {a, l})
+      end)
+      |> MapSet.to_list()
+      |> make_stored_info(clump_id, [])
+
+    action(:status, clump_id, :put, {{clump_id, :stored_info}, {:ok, si}})
+  end
+
+  defp make_stored_info([], _clump_id, acc), do: acc |> Enum.reverse
+
+  defp make_stored_info([{a, l} | rest], clump_id, acc) do
+    a =
+      case Baobab.max_seqnum(a, log_id: l, clump_id: clump_id) do
+        0 -> acc
+        n -> [{a, l, n} | acc]
+      end
+
+    make_stored_info(rest, clump_id, a)
   end
 
   @doc """

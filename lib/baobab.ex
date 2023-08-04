@@ -224,46 +224,16 @@ defmodule Baobab do
   @doc """
   A list of {author, log_id, max_seqnum} tuples in the configured store
   """
-  # This is all crazy inefficient, but I will clean it up at some
-  # point in the future if I care enough.
+  # I cared enough to do a little improvement on this.
   def stored_info(clump_id \\ "default")
-  def stored_info(clump_id), do: stored_info(logs(clump_id), clump_id, [])
 
-  defp stored_info([], _, acc), do: acc |> Enum.sort()
-
-  defp stored_info([{a, l} | rest], clump_id, acc) do
-    a =
-      case max_seqnum(a, log_id: l, clump_id: clump_id) do
-        0 -> acc
-        n -> [{a, l, n} | acc]
-      end
-
-    stored_info(rest, clump_id, a)
-  end
+  def stored_info(clump_id), do: Persistence.current_stored_info(clump_id)
 
   @doc """
   A list of all {author, log_id, seqnum} tuples in the configured store
   """
   def all_entries(clump_id \\ "default")
-
-  def all_entries(clump_id) do
-    :content
-    |> Persistence.action(clump_id, :foldl, fn item, acc ->
-      case item do
-        {e, _} -> [e | acc]
-        _ -> acc
-      end
-    end)
-  end
-
-  defp logs(clump_id) do
-    clump_id
-    |> all_entries()
-    |> Enum.reduce(MapSet.new(), fn {a, l, _}, c ->
-      MapSet.put(c, {a, l})
-    end)
-    |> MapSet.to_list()
-  end
+  def all_entries(clump_id), do: Persistence.current_value(:content, clump_id)
 
   @doc """
   Retrieve a list of all populated clumps
