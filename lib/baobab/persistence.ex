@@ -40,11 +40,12 @@ defmodule Baobab.Persistence do
   defp perform_action(which, :match, key_pattern),
     do: :dets.match(which, {key_pattern, :_})
 
-  defp store(which, clump_id, :open) do
+  @doc false
+  def store(which, clump_id, :open) do
     {:ok, ^which} = :dets.open_file(which, file: proper_db_path(which, clump_id))
   end
 
-  defp store(which, _clump_id, :close), do: :dets.close(which)
+  def store(which, _clump_id, :close), do: :dets.close(which)
 
   @doc """
   Retrieve the current hash of the `:content` or `:identity` store.

@@ -236,7 +236,7 @@ defmodule Baobab do
   def all_entries(clump_id), do: Persistence.current_value(:content, clump_id)
 
   @doc """
-  Retrieve a list of all populated clumps
+  Retrieve a list of all available clumps
   """
 
   def clumps() do
@@ -246,6 +246,28 @@ defmodule Baobab do
     |> Path.wildcard()
     |> Enum.map(fn p -> Interchange.clump_from_path(p) end)
     |> Enum.sort()
+  end
+
+  @doc """
+  Create a clump
+  """
+
+  def create_clump(clump_id) when is_binary(clump_id) do
+    spool = Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
+    File.mkdir_p(Path.join([spool, clump_id]))
+    Persistence.store(:content, clump_id, :open)
+    Persistence.store(:content, clump_id, :close)
+    :ok
+  end
+
+  def create_clump(_ci), do: {:error, "Improper clump_id"}
+
+  @doc """
+  Drop a clump
+  """
+  def drop_clump(clump_id) do
+    spool = Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
+    File.rm_rf(Path.join([spool, clump_id]))
   end
 
   @doc false

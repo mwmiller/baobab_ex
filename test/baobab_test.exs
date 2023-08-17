@@ -7,11 +7,10 @@ defmodule BaobabTest do
   @export_dir "/tmp/bao_test_export"
 
   setup do
-    spool = Application.fetch_env!(:baobab, :spool_dir) |> Path.expand()
-    File.mkdir_p(Path.join([spool, "default"]))
+    Baobab.create_clump("default")
 
     on_exit(fn ->
-      File.rm_rf(spool)
+      File.rm_rf(Application.fetch_env!(:baobab, :spool_dir) |> Path.expand())
       File.rm_rf(@export_dir)
     end)
   end
