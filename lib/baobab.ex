@@ -198,8 +198,15 @@ defmodule Baobab do
     {log_id, clump_id} = options |> optvals([:log_id, :clump_id])
 
     :content
-    |> Persistence.action(clump_id, :match, {auth, log_id, :"$1"})
-    |> List.flatten()
+    |> Persistence.action(clump_id, :foldl, fn item, acc ->
+      case item do
+        {{^auth, ^log_id, e}, _} ->
+          [e | acc]
+
+        _ ->
+          acc
+      end
+    end)
     |> Enum.sort()
   end
 
