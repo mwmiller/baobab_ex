@@ -97,7 +97,6 @@ defmodule Baobab.Persistence do
 
       _ ->
         recompute_hash(clump_id, which)
-        current_hash(which, clump_id)
     end
   end
 
@@ -141,18 +140,16 @@ defmodule Baobab.Persistence do
   end
 
   defp recompute_si(all_entries, clump_id) do
-    si =
-      all_entries
-      |> Enum.reduce(MapSet.new(), fn {a, l, _}, c ->
-        MapSet.put(c, {a, l})
-      end)
-      |> MapSet.to_list()
-      |> make_stored_info(clump_id, [])
-
-    action(:status, clump_id, :put, {{clump_id, :stored_info}, {:ok, si}})
+    all_entries
+    |> Enum.reduce(MapSet.new(), fn {a, l, _}, c ->
+      MapSet.put(c, {a, l})
+    end)
+    |> MapSet.to_list()
+    |> make_stored_info(clump_id, [])
+    |> then(fn si -> action(:status, clump_id, :put, {{clump_id, :stored_info}, {:ok, si}}) end)
   end
 
-  defp make_stored_info([], _clump_id, acc), do: acc |> Enum.reverse
+  defp make_stored_info([], _clump_id, acc), do: acc |> Enum.reverse()
 
   defp make_stored_info([{a, l} | rest], clump_id, acc) do
     a =
