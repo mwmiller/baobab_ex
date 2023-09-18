@@ -25,7 +25,7 @@ defmodule Baobab.Interchange do
   defp import_listed_binaries([binary | rest], {overwrite, clump_id} = opts, acc) do
     result =
       binary
-      |> Entry.from_binaries(true, clump_id)
+      |> Entry.from_binaries(false, clump_id)
       |> Enum.map(fn e -> Entry.store(e, clump_id, overwrite) end)
 
     import_listed_binaries(rest, opts, acc ++ result)
