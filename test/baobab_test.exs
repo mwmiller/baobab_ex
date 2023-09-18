@@ -16,6 +16,12 @@ defmodule BaobabTest do
   end
 
   test "import remote" do
+    content_hash =
+      "an40NbEEIao13pXVkt98XIKvaH7pbY9cpwhFVtxiHfRIEo2HOzGogAWlgB8ev135AChYqUw0WflMVgVJDOCAri"
+
+    id_hash =
+      "1mv5j51thm3k7KWplJC0PDZtM0aNh6zb7QAPAvprqeCfqlVJ21w21D6DJDbovn7R9z6rnulyVue0BkKFurAFVf"
+
     remote_entry = File.read!("test/remote_entry")
 
     [local_entry | _] = Interchange.import_binaries(remote_entry)
@@ -26,14 +32,17 @@ defmodule BaobabTest do
     assert local_entry == Baobab.log_entry(author, :max)
     assert remote_entry == Baobab.log_entry(author, :max, format: :binary)
     assert [{"7nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG", 0, 1}] = Baobab.stored_info()
-    assert "4XwOPI3gAo" == Persistence.current_hash(:content)
-    assert "1MxoSSY9hs" == Persistence.current_hash(:identity)
+
+    assert content_hash == Persistence.current_hash(:content)
+
+    assert id_hash == Persistence.current_hash(:identity)
     assert ["default"] == Baobab.clumps()
 
     # More interchange stuff might as well do it here
     # We demand at least one identity, so...
     Identity.create("rando")
-    idhash = Persistence.current_hash(:identity)
+    identity_hash = Persistence.current_hash(:identity)
+    refute identity_hash == id_hash
 
     assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] ==
              Baobab.ClumpMeta.block("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
@@ -41,12 +50,12 @@ defmodule BaobabTest do
     assert @export_dir == Interchange.export_store(@export_dir)
     assert [] == Baobab.ClumpMeta.unblock("8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG")
     assert [] == Baobab.purge(:all, log_id: :all)
-    refute "4XwOPI3gAo" == Persistence.current_hash(:content)
+    refute content_hash == Persistence.current_hash(:content)
     Identity.drop("rando")
-    assert "1MxoSSY9hs" == Persistence.current_hash(:identity)
+    assert id_hash == Persistence.current_hash(:identity)
     assert :ok == Interchange.import_store(@export_dir)
-    assert "4XwOPI3gAo" == Persistence.current_hash(:content)
-    assert idhash == Persistence.current_hash(:identity)
+    assert content_hash == Persistence.current_hash(:content)
+    assert identity_hash == Persistence.current_hash(:identity)
 
     assert ["8nzwZrUYdugEt4WH8FRuWLPekR4MFzrRauIudDhmBmG"] = Baobab.ClumpMeta.blocks_list()
   end

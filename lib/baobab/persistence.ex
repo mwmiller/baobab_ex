@@ -67,7 +67,7 @@ defmodule Baobab.Persistence do
   end
 
   @doc """
-  Retrieve the current stored info which is the max entry for each 
+  Retrieve the current stored info which is the max entry for each
   stored log
   """
   def current_stored_info(clump_id \\ "default")
@@ -107,26 +107,26 @@ defmodule Baobab.Persistence do
   defp recompute_hash(_, :metadata), do: "nahnah"
 
   defp recompute_hash(clump_id, which) do
-    stuff =
+    {id, stuff} =
       case which do
         :content ->
           val = all_entries(clump_id)
           recompute_si(val, clump_id)
-          val
+          {clump_id, val}
 
         :identity ->
-          Baobab.Identity.list()
+          {"default", Baobab.Identity.list()}
       end
 
     hash =
       stuff
       |> :erlang.term_to_binary()
-      |> Blake2.hash2b(7)
+      |> then(fn d -> :crypto.hash(:blake2b, d) end)
       |> BaseX.Base62.encode()
 
     # Even though identities are the same in both
     # I might be convinced otherwise later
-    action(:status, clump_id, :put, {{clump_id, which}, {hash, stuff}})
+    action(:status, clump_id, :put, {{id, which}, {hash, stuff}})
     hash
   end
 
