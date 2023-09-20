@@ -48,7 +48,7 @@ defmodule Baobab.Entry.Validator do
   defp validate_link(clump_id, entry) do
     with :ok <- validate_sig(entry),
          :ok <- validate_backlink(clump_id, entry),
-         :ok <- validate_lipmaalink(clump_id, entry) do
+         :ok <- validate_lipmaalink(clump_id, entry, true) do
       :ok
     else
       error -> error
@@ -127,17 +127,22 @@ defmodule Baobab.Entry.Validator do
   end
 
   @doc """
-  Validate the `lipmaalink` field of a `Baobab.Entry` relatve to the provided clump_id
+  Validate the `lipmaalink` field of a `Baobab.Entry` relative to the provided clump_id
   """
-  @spec validate_lipmaalink(String.t(), %Baobab.Entry{}) :: :ok | {:error, String.t()}
-  def validate_lipmaalink(_clump_id, %Baobab.Entry{seqnum: 1, lipmaalink: nil}), do: :ok
+  @spec validate_lipmaalink(String.t(), %Baobab.Entry{}, boolean) :: :ok | {:error, String.t()}
+  def validate_lipmaalink(clump_id, entry, missing_ok \\ false)
+  def validate_lipmaalink(_clump_id, %Baobab.Entry{seqnum: 1, lipmaalink: nil}, _), do: :ok
 
-  def validate_lipmaalink(clump_id, %Baobab.Entry{
-        author: author,
-        log_id: log_id,
-        seqnum: seq,
-        lipmaalink: ll
-      }) do
+  def validate_lipmaalink(
+        clump_id,
+        %Baobab.Entry{
+          author: author,
+          log_id: log_id,
+          seqnum: seq,
+          lipmaalink: ll
+        },
+        missing_ok
+      ) do
     case {seq - 1, Lipmaa.linkseq(seq), ll} do
       {n, n, nil} ->
         :ok
@@ -148,7 +153,10 @@ defmodule Baobab.Entry.Validator do
       {_, n, ll} ->
         case Persistence.content(:entry, :contents, {author, log_id, n}, clump_id) do
           :error ->
-            {:error, "Missing lipmaalink entry for verificaton"}
+            case missing_ok do
+              false -> {:error, "Missing lipmaalink entry for verificaton"}
+              true -> :ok
+            end
 
           fll ->
             case YAMFhash.verify(ll, fll) do
