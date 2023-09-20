@@ -2,7 +2,7 @@ defmodule Baobab do
   alias Baobab.{Entry, Identity, Interchange, Persistence}
 
   @moduledoc """
-  Baobab is an Elixir implementation of the 
+  Baobab is an Elixir implementation of the
   [Bamboo](https://github.com/AljoschaMeyer/bamboo) append-only log.
 
   It is fairly opinionated about the DETS persistence of the logs.
@@ -40,20 +40,7 @@ defmodule Baobab do
   def compact(author, options \\ []) do
     a = author |> Identity.as_base62()
     {log_id, clump_id} = options |> optvals([:log_id, :clump_id])
-
-    case all_seqnum(a, options) do
-      [] ->
-        []
-
-      entries ->
-        last = List.last(entries)
-        pool = certificate_pool(a, last, log_id, clump_id) |> MapSet.new()
-        eset = entries |> MapSet.new()
-
-        for e <- MapSet.difference(eset, pool) do
-          {Entry.delete(a, e, log_id, clump_id), e}
-        end
-    end
+    Baobab.Persistence.compact(a, log_id, clump_id)
   end
 
   @doc """

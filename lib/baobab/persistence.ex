@@ -101,6 +101,34 @@ defmodule Baobab.Persistence do
     end
   end
 
+  def compact(author, log_id, clump_id) do
+    store(:content, clump_id, :open)
+
+    stored =
+      action(:content, clump_id, :foldl, fn item, acc ->
+        case item do
+          {{^author, ^log_id, _} = entry, _} ->
+            [entry | acc]
+
+          _ ->
+            acc
+        end
+      end)
+
+    {_, _, tip} = Enum.max_by(stored, fn {_, _, e} -> e end)
+    keep = Lipmaa.cert_pool(tip)
+
+    Enum.each(stored, fn {a, l, e} ->
+      case e in keep do
+        true -> :noop
+        false -> perform_action(:content, :delete, {a, l, e})
+      end
+    end)
+
+    recompute_hash(clump_id, :content)
+    store(:content, clump_id, :close)
+  end
+
   defp recompute_hash(clump_id, table)
   defp recompute_hash(_, :status), do: "nahnah"
   # This one should probably have this available at some point
