@@ -41,7 +41,11 @@ defmodule Baobab.Identity do
   end
 
   defp stored_authors() do
-    Baobab.stored_info() |> Enum.map(fn {a, _, _} -> a end) |> Enum.uniq()
+    Baobab.clumps()
+    |> Enum.reduce([], fn ci, a ->
+      (ci |> Baobab.stored_info() |> Enum.map(fn {a, _, _} -> a end)) ++ a
+    end)
+    |> Enum.uniq()
   end
 
   @doc """

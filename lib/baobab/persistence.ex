@@ -55,7 +55,12 @@ defmodule Baobab.Persistence do
   """
   def current_hash(which, clump_id \\ "default")
 
-  def current_hash(which, clump_id) do
+  def current_hash(:content, clump_id), do: ch(:content, clump_id)
+  def current_hash(:identity, _), do: ch(:identity, "")
+
+  defp ch(which, clump_id) do
+    # I've made a real hash of this trying to generalise for the
+    # majorly different
     case action(:status, clump_id, :get, {clump_id, which}) do
       {hash, _stuff} ->
         hash
@@ -91,7 +96,10 @@ defmodule Baobab.Persistence do
   """
   def current_value(which, clump_id \\ "default")
 
-  def current_value(which, clump_id) do
+  def current_value(:content, clump_id), do: cv(:content, clump_id)
+  def current_value(:identity, _), do: cv(:identity, "")
+
+  defp cv(which, clump_id) do
     case action(:status, clump_id, :get, {clump_id, which}) do
       {_hash, stuff} ->
         stuff
