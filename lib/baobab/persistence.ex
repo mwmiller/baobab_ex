@@ -48,26 +48,23 @@ defmodule Baobab.Persistence do
   def store(which, _clump_id, :close), do: :dets.close(which)
 
   @doc """
-  Retrieve the current hash of the `:content` or `:identity` store.
+  Retrieve the current hash of the `:content` store.
 
   No information should be gleaned from any particular hash beyond whether
   the contents have changed since a previous check.
   """
-  def current_hash(which, clump_id \\ "default")
+  def content_hash(clump_id \\ "default")
 
-  def current_hash(:content, clump_id), do: ch(:content, clump_id)
-  def current_hash(:identity, _), do: ch(:identity, "")
-
-  defp ch(which, clump_id) do
+  def content_hash(clump_id) do
     # I've made a real hash of this trying to generalise for the
     # majorly different
-    case action(:status, clump_id, :get, {clump_id, which}) do
+    case action(:status, clump_id, :get, {clump_id, :content}) do
       {hash, _stuff} ->
         hash
 
       _ ->
-        recompute_hash(clump_id, which)
-        current_hash(which, clump_id)
+        recompute_hash(clump_id, :content)
+        content_hash(clump_id)
     end
   end
 
@@ -89,23 +86,18 @@ defmodule Baobab.Persistence do
   end
 
   @doc """
-  Retrieve the current value of the `:content` or `:identity` store.
+  Retrieve the current value of the `:content` store.
 
-  No information should be gleaned from any particular hash beyond whether
-  the contents have changed since a previous check.
   """
-  def current_value(which, clump_id \\ "default")
+  def current_value(clump_id \\ "default")
 
-  def current_value(:content, clump_id), do: cv(:content, clump_id)
-  def current_value(:identity, _), do: cv(:identity, "")
-
-  defp cv(which, clump_id) do
-    case action(:status, clump_id, :get, {clump_id, which}) do
+  def current_value(clump_id) do
+    case action(:status, clump_id, :get, {clump_id, :content}) do
       {_hash, stuff} ->
         stuff
 
       _ ->
-        recompute_hash(clump_id, which)
+        recompute_hash(clump_id, :content)
     end
   end
 
@@ -141,6 +133,7 @@ defmodule Baobab.Persistence do
   defp recompute_hash(_, :status), do: "nahnah"
   # This one should probably have this available at some point
   defp recompute_hash(_, :metadata), do: "nahnah"
+  defp recompute_hash(_, :identity), do: "nahnah"
 
   defp recompute_hash(clump_id, which) do
     {id, stuff} =
@@ -149,9 +142,6 @@ defmodule Baobab.Persistence do
           val = all_entries(clump_id)
           recompute_si(val, clump_id)
           {clump_id, val}
-
-        :identity ->
-          {"", Baobab.Identity.list()}
       end
 
     hash =

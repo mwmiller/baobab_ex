@@ -227,7 +227,7 @@ defmodule Baobab do
   A list of all {author, log_id, seqnum} tuples in the configured store
   """
   def all_entries(clump_id \\ "default")
-  def all_entries(clump_id), do: Persistence.current_value(:content, clump_id)
+  def all_entries(clump_id), do: Persistence.current_value(clump_id)
 
   @doc """
   Retrieve a list of all available clumps
