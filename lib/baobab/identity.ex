@@ -140,5 +140,5 @@ defmodule Baobab.Identity do
 
   @doc false
   def ident_store(action, value \\ nil),
-    do: Persistence.action(:identity, "default", action, value)
+    do: Persistence.action(:identity, "", action, value)
 end

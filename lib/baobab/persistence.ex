@@ -143,7 +143,7 @@ defmodule Baobab.Persistence do
           {clump_id, val}
 
         :identity ->
-          {"default", Baobab.Identity.list()}
+          {"", Baobab.Identity.list()}
       end
 
     hash =
