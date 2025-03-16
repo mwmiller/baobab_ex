@@ -65,7 +65,7 @@ defmodule Baobab.Interchange do
   defp import_store_metadata([json_file | rest]) do
     cid = clump_from_path(json_file)
 
-    case json_file |> File.read!() |> Jason.decode!() do
+    case json_file |> File.read!() |> JSON.decode!() do
       %{"blocks" => blist} -> perform_blocks(blist, cid)
       _ -> notours()
     end
@@ -90,7 +90,7 @@ defmodule Baobab.Interchange do
   defp import_store_identities([]), do: :ok
 
   defp import_store_identities([json_file | rest]) do
-    case json_file |> File.read!() |> Jason.decode!() do
+    case json_file |> File.read!() |> JSON.decode!() do
       # This is surprisingly liberal given our stance on current importing
       %{"identity" => id, "secret_key" => sk, "public_key" => pk} ->
         case Identity.create(id, sk) do
@@ -146,7 +146,7 @@ defmodule Baobab.Interchange do
   defp export_store_identities([{i, pk} | rest], path) do
     file = Path.join(path, i <> ".keyfile.json")
 
-    {:ok, json} =
+    json =
       %{
         "source" => "baobab",
         "key_encoding" => "base62",
@@ -155,7 +155,7 @@ defmodule Baobab.Interchange do
         "public_key" => pk,
         "secret_key" => Identity.key(i, :secret) |> BaseX.Base62.encode()
       }
-      |> Jason.encode()
+      |> JSON.encode!()
 
     :ok = File.write(file, json)
     :ok = File.chmod(file, 0o600)
@@ -173,9 +173,7 @@ defmodule Baobab.Interchange do
   defp export_clump_metadata(cid, path) do
     file = Path.join([path, cid, "metadata.json"])
 
-    {:ok, json} =
-      %{"blocks" => Baobab.ClumpMeta.blocks_list(cid)}
-      |> Jason.encode()
+    json = %{"blocks" => Baobab.ClumpMeta.blocks_list(cid)} |> JSON.encode!()
 
     :ok = File.write(file, json)
     :ok = File.chmod(file, 0o600)

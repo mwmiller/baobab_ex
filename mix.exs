@@ -4,8 +4,8 @@ defmodule Baobab.MixProject do
   def project do
     [
       app: :baobab,
-      version: "0.30.0",
-      elixir: "~> 1.15",
+      version: "0.31.0",
+      elixir: "~> 1.18",
       name: "Baobab",
       source_url: "https://github.com/mwmiller/baobab_ex",
       build_embedded: Mix.env() == :prod,
@@ -31,7 +31,6 @@ defmodule Baobab.MixProject do
       {:yamfhash, ">= 1.0.0"},
       # Not written by me
       {:enacl, "~> 1.2"},
-      {:jason, "~> 1.4"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
