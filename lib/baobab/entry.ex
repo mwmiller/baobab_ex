@@ -47,7 +47,7 @@ defmodule Baobab.Entry do
     tail = Varu64.encode(byte_size(payload)) <> YAMFhash.create(payload, 0)
 
     meat = head <> ll <> bl <> tail
-    sig = :enacl.sign_detached(meat, signer)
+    sig = Ed25519.signature(meat, signer, author)
     entry = meat <> sig
 
     Persistence.content(:both, :write, {author, log_id, seq}, clump_id, {entry, payload})

@@ -69,9 +69,6 @@ defmodule Baobab.Identity do
 
   def create(identity, secret_key)
       when is_binary(identity) and is_binary(secret_key) and byte_size(secret_key) == 32 do
-    # Despite appearances, enacl does not derive public
-    # from secret.  Instead it counts on the fact that the
-    # two are concatenated. So this stays.
     pair = {secret_key, Ed25519.derive_public_key(secret_key)}
     ident_store(:put, {identity, pair})
     elem(pair, 1) |> as_base62
