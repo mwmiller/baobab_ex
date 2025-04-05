@@ -4,7 +4,7 @@ defmodule Baobab.MixProject do
   def project do
     [
       app: :baobab,
-      version: "0.31.0",
+      version: "0.34.0",
       elixir: "~> 1.18",
       name: "Baobab",
       source_url: "https://github.com/mwmiller/baobab_ex",
@@ -30,7 +30,8 @@ defmodule Baobab.MixProject do
       {:varu64, "~> 1.0.0"},
       {:yamfhash, ">= 1.0.0"},
       # Not written by me
-      {:enacl, "~> 1.2"},
+      {:enacl,
+       git: "git@github.com:PreVeil/enacl.git", ref: "0eb12e3d4bdc8dec321d9d22f47790dc9ae9af7b"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
     ]
   end
