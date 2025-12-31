@@ -4,7 +4,7 @@ defmodule Baobab.MixProject do
   def project do
     [
       app: :baobab,
-      version: "0.34.0",
+      version: "0.35.0",
       elixir: "~> 1.18",
       name: "Baobab",
       source_url: "https://github.com/mwmiller/baobab_ex",
@@ -25,7 +25,7 @@ defmodule Baobab.MixProject do
   defp deps do
     [
       {:basex, ">= 0.0.0"},
-      {:ed25519, "~> 1.4"},
+      {:ed25519, "~> 1.5"},
       {:lipmaa, ">= 1.1.0"},
       {:varu64, "~> 1.0.0"},
       {:yamfhash, ">= 1.0.0"},
