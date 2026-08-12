@@ -27,7 +27,7 @@ defmodule Baobab.Entry do
   @doc false
   def create(payload, clump_id, identity, log_id) do
     author = Identity.key(identity, :public)
-    signer = Identity.key(identity, :signing)
+    signer = Identity.key(identity, :secret)
     prev = Baobab.max_seqnum(author, log_id: log_id, clump_id: clump_id)
     seq = prev + 1
     head = <<0>> <> author <> Varu64.encode(log_id) <> Varu64.encode(seq)
@@ -50,10 +50,16 @@ defmodule Baobab.Entry do
     sig = Ed25519.signature(meat, signer, author)
     entry = meat <> sig
 
-    Persistence.content(:both, :write, {author, log_id, seq}, clump_id, {entry, payload})
-
     {final, ""} = (entry <> payload) |> from_binary({false, clump_id})
-    final
+
+    case Validator.validate_sig(final) do
+      :ok ->
+        Persistence.content(:both, :write, {author, log_id, seq}, clump_id, {entry, payload})
+        final
+
+      error ->
+        error
+    end
   end
 
   @doc false
@@ -205,7 +211,7 @@ defmodule Baobab.Entry do
   end
 
   defp add_payload(%Baobab.Entry{size: pbytes} = map, full, _) do
-    <<payload::binary-size(pbytes), rest::binary>> = full
+    <<payload::binary-size(^pbytes), rest::binary>> = full
     {Map.put(map, :payload, payload), rest}
   end
 end

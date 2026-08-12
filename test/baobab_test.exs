@@ -151,6 +151,17 @@ defmodule BaobabTest do
              ClumpMeta.block({new_guy, 2})
   end
 
+  test "own signature validated on write" do
+    {sk, _pk} = Ed25519.generate_key_pair()
+    {_other_sk, other_pk} = Ed25519.generate_key_pair()
+    Identity.ident_store(:put, {"mismatched", {sk, other_pk}})
+
+    assert {:error, "Invalid signature"} =
+             Baobab.append_log("This should not be persisted", "mismatched")
+
+    assert [] == Baobab.stored_info()
+  end
+
   test "purgeitory" do
     b62first = Identity.create("first")
     b62second = Identity.create("second")
