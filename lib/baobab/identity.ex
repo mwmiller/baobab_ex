@@ -19,6 +19,13 @@ defmodule Baobab.Identity do
   def as_base62(identity)
   def as_base62(id) when not is_binary(id), do: {:error, "Unresolvable identity"}
 
+  # These key-shaped clauses must come before the "~"-short clause:
+  # a raw 32-byte key whose first byte is 0x7E ("~") would otherwise
+  # be misinterpreted as a short identity reference.
+  # Looks like a base62-encoded key
+  def as_base62(identity) when byte_size(identity) == 43, do: identity
+  # Looks like a proper key
+  def as_base62(identity) when byte_size(identity) == 32, do: BaseX.Base62.encode(identity)
   # Looks like a short base62
   def as_base62(<<"~", short::binary>>) do
     case Enum.filter(stored_authors(), fn a -> String.starts_with?(a, short) end) do
@@ -28,10 +35,6 @@ defmodule Baobab.Identity do
     end
   end
 
-  # Looks like a base62-encoded key
-  def as_base62(identity) when byte_size(identity) == 43, do: identity
-  # Looks like a proper key
-  def as_base62(identity) when byte_size(identity) == 32, do: BaseX.Base62.encode(identity)
   # I guess it's a stored identity?
   def as_base62(identity) do
     case key(identity, :public) do

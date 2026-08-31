@@ -15,6 +15,13 @@ defmodule BaobabTest do
     end)
   end
 
+  test "as_base62 handles raw keys beginning with ~ (0x7E)" do
+    # Regression: a 32-byte key whose first byte is "~" used to fall into
+    # the short-identity clause and return an error.
+    key = <<0x7E, :crypto.strong_rand_bytes(31)::binary>>
+    assert BaseX.Base62.encode(key) == Identity.as_base62(key)
+  end
+
   test "import remote" do
     content_hash =
       "an40NbEEIao13pXVkt98XIKvaH7pbY9cpwhFVtxiHfRIEo2HOzGogAWlgB8ev135AChYqUw0WflMVgVJDOCAri"
