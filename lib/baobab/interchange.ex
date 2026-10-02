@@ -66,8 +66,18 @@ defmodule Baobab.Interchange do
     cid = clump_from_path(json_file)
 
     case json_file |> File.read!() |> JSON.decode!() do
-      %{"blocks" => blist} -> perform_blocks(blist, cid)
-      _ -> notours()
+      %{"blocks" => blist, "block_patterns" => plist} ->
+        perform_blocks(blist, cid)
+        perform_patterns(plist, cid)
+
+      %{"blocks" => blist} ->
+        perform_blocks(blist, cid)
+
+      %{"block_patterns" => plist} ->
+        perform_patterns(plist, cid)
+
+      _ ->
+        notours()
     end
 
     import_store_metadata(rest)
@@ -86,6 +96,16 @@ defmodule Baobab.Interchange do
   end
 
   defp perform_blocks([_ | rest], cid), do: perform_blocks(rest, cid)
+
+  defp perform_patterns([], _), do: :ok
+
+  defp perform_patterns([%{"op" => "eq", "mask" => mask, "v" => value} | rest], cid)
+       when is_integer(mask) and is_integer(value) do
+    Baobab.ClumpMeta.block_pattern(%{op: :eq, mask: mask, v: value}, cid)
+    perform_patterns(rest, cid)
+  end
+
+  defp perform_patterns([_ | rest], cid), do: perform_patterns(rest, cid)
 
   defp import_store_identities([]), do: :ok
 
@@ -173,7 +193,12 @@ defmodule Baobab.Interchange do
   defp export_clump_metadata(cid, path) do
     file = Path.join([path, cid, "metadata.json"])
 
-    json = %{"blocks" => Baobab.ClumpMeta.blocks_list(cid)} |> JSON.encode!()
+    json =
+      %{
+        "blocks" => Baobab.ClumpMeta.blocks_list(cid),
+        "block_patterns" => Baobab.ClumpMeta.patterns_list(cid)
+      }
+      |> JSON.encode!()
 
     :ok = File.write(file, json)
     :ok = File.chmod(file, 0o600)

@@ -143,24 +143,29 @@ defmodule Baobab.ClumpMeta do
   end
 
   @doc """
-  Returns a boolean indicating whether the supplied spec is blocked on the supplied clump
-
-  Includes the specifications from `block/2` and `{author, log_id, seq_num}`
+  Check whether a log_id is blocked by any means: literal block
+  (author, log_id, or {author, log_id}) or pattern block.
   """
-  @spec blocked?(term) :: boolean | {:error, String.t()}
+  @spec blocked?(term, binary) :: boolean | {:error, String.t()}
   def blocked?(item, clump_id \\ "default")
 
   def blocked?({author, log_id, _seq}, clump_id) do
     with {:ok, cid} <- check_clump_id(clump_id) do
-      check_block(get_blocks(cid), author, log_id, 1)
+      check_block(get_blocks(cid), author, log_id) or
+        pattern_matches?(log_id, cid)
     else
       err -> err
     end
   end
 
-  # We don't check the values closely here because we aren't going to 
-  # mutate anything based on them the can give us any nonsense and
-  # we can just say it's not in the list
+  def blocked?(log_id, clump_id) when is_integer(log_id) do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      do_blocked_check(log_id, cid) or pattern_matches?(log_id, cid)
+    else
+      err -> err
+    end
+  end
+
   def blocked?(item, clump_id) do
     with {:ok, cid} <- check_clump_id(clump_id) do
       do_blocked_check(item, cid)
@@ -197,33 +202,166 @@ defmodule Baobab.ClumpMeta do
   end
 
   @doc """
-  Filter out blocked clump logs from a supplied list of entry
-  tuples ({`author`, `log_id`, `seq_num`})
+  Block log_ids matching a bitwise pattern.
+
+  The pattern is `%{op: :eq, mask: mask, v: value}`. Any log_id where
+  `Bitwise.band(log_id, mask) == value` is considered blocked.
+
+  Returns the current patterns list.
   """
-  @spec filter_blocked([tuple], binary) :: [tuple] | {:error, String.t()}
-  def filter_blocked(entries, clump_id \\ "default") do
+  @spec block_pattern(map, binary) :: [map] | {:error, String.t()}
+  def block_pattern(pattern, clump_id \\ "default")
+
+  def block_pattern(%{op: :eq, mask: mask, v: value}, clump_id)
+      when is_integer(mask) and is_integer(value) do
     with {:ok, cid} <- check_clump_id(clump_id) do
-      block_filter(entries, get_blocks(cid), [])
+      do_block_pattern(mask, value, cid)
     else
       err -> err
     end
   end
 
-  defp block_filter([], _, acc), do: Enum.reverse(acc)
+  def block_pattern(_, _), do: {:error, "Pattern must be %{op: :eq, mask: mask, v: value}"}
 
-  defp block_filter([entry | rest], ms, acc) do
-    {a, l, e} =
+  defp do_block_pattern(mask, value, cid) do
+    patterns = get_patterns(cid)
+
+    if already_has_pattern?(patterns, mask, value) do
+      patterns_to_list(patterns)
+    else
+      new = [%{op: :eq, mask: mask, v: value} | patterns]
+      save_patterns(new, cid)
+      patterns_to_list(new)
+    end
+  end
+
+  @spec already_has_pattern?([map], integer, integer) :: boolean
+  defp already_has_pattern?(patterns, mask, value) do
+    Enum.any?(patterns, fn
+      %{op: :eq, mask: ^mask, v: ^value} -> true
+      _ -> false
+    end)
+  end
+
+  @doc """
+  Remove a pattern that was blocking log_ids.
+
+  Returns the current patterns list.
+  """
+  @spec unblock_pattern(map, binary) :: [map] | {:error, String.t()}
+  def unblock_pattern(pattern, clump_id \\ "default")
+
+  def unblock_pattern(%{op: :eq, mask: mask, v: value}, clump_id)
+      when is_integer(mask) and is_integer(value) do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      patterns = get_patterns(cid)
+
+      new =
+        Enum.reject(patterns, fn
+          %{op: :eq, mask: ^mask, v: ^value} -> true
+          _ -> false
+        end)
+
+      save_patterns(new, cid)
+      patterns_to_list(new)
+    else
+      err -> err
+    end
+  end
+
+  def unblock_pattern(_, _), do: {:error, "Pattern must be %{op: :eq, mask: mask, v: value}"}
+
+  @doc """
+  Returns the list of active block patterns for the given clump.
+  """
+  @spec patterns_list(binary) :: [map] | {:error, String.t()}
+  def patterns_list(clump_id \\ "default") do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      get_patterns(cid) |> patterns_to_list()
+    else
+      err -> err
+    end
+  end
+
+  defp patterns_to_list(patterns), do: patterns
+
+  defp get_patterns(cid) do
+    case Persistence.action(:metadata, cid, :get, :block_patterns) do
+      nil -> []
+      list -> list
+    end
+  end
+
+  defp save_patterns(patterns, cid) do
+    Persistence.action(:metadata, cid, :put, {:block_patterns, patterns})
+  end
+
+  @doc """
+  Check whether a log_id is matched by any active block pattern.
+  """
+  @spec pattern_matches?(integer, binary) :: boolean
+  def pattern_matches?(log_id, clump_id \\ "default") when is_integer(log_id) do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      get_patterns(cid)
+      |> Enum.any?(fn %{op: :eq, mask: m, v: v} -> Bitwise.band(log_id, m) == v end)
+    else
+      _ -> false
+    end
+  end
+
+  @doc """
+  Filter out blocked clump logs from a supplied list of entry
+  tuples ({`author`, `log_id`, `seq_num`})
+
+  Checks literal blocks (author/log_id/entry) and pattern blocks
+  (bitwise mask match on log_id).
+  """
+  @spec filter_blocked([tuple], binary) :: [tuple] | {:error, String.t()}
+  def filter_blocked(entries, clump_id \\ "default") do
+    with {:ok, cid} <- check_clump_id(clump_id) do
+      block_filter(entries, get_blocks(cid), get_patterns(cid), [])
+    else
+      err -> err
+    end
+  end
+
+  defp block_filter([], _, _, acc), do: Enum.reverse(acc)
+
+  defp block_filter(entries, ms, patterns, acc) do
+    {base_logs, families} = classify_patterns(patterns)
+    do_block_filter(entries, ms, base_logs, families, acc)
+  end
+
+  defp do_block_filter([], _, _, _, acc), do: Enum.reverse(acc)
+
+  defp do_block_filter([entry | rest], ms, base_logs, families, acc) do
+    {a, l, _e} =
       case entry do
         [a, l, e] -> {a, l, e}
         {a, l, e} -> {a, l, e}
       end
 
-    case check_block(ms, a, l, e) do
-      true -> block_filter(rest, ms, acc)
-      false -> block_filter(rest, ms, [entry | acc])
+    case check_block(ms, a, l) or
+           MapSet.member?(base_logs, Bitwise.band(l, 0x00FFFFFFFFFFFFFF)) or
+           MapSet.member?(families, Bitwise.bsr(l, 48)) do
+      true -> do_block_filter(rest, ms, base_logs, families, acc)
+      false -> do_block_filter(rest, ms, base_logs, families, [entry | acc])
     end
   end
 
-  defp check_block(ms, a, l, _e),
+  defp classify_patterns(patterns) do
+    Enum.reduce(patterns, {MapSet.new(), MapSet.new()}, fn
+      %{op: :eq, mask: 0x00FFFFFFFFFFFFFF, v: v}, {bl, fam} ->
+        {MapSet.put(bl, v), fam}
+
+      %{op: :eq, mask: 0x00FF000000000000, v: v}, {bl, fam} ->
+        {bl, MapSet.put(fam, Bitwise.bsr(v, 48))}
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp check_block(ms, a, l),
     do: Enum.any?([a, l, {a, l}], fn ls -> MapSet.member?(ms, ls) end)
 end

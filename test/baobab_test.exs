@@ -233,4 +233,112 @@ defmodule BaobabTest do
     assert [] == ClumpMeta.unblock(3)
     assert [] == ClumpMeta.blocks_list()
   end
+
+  test "pattern blocking" do
+    dude = Identity.create("dude")
+    guy = Identity.create("guy")
+
+    # Block by base_log pattern (mask 0x00FFFFFFFFFFFFFF matches lower 56 bits)
+    base_mask = 0x00FFFFFFFFFFFFFF
+    assert [] == ClumpMeta.patterns_list()
+
+    assert [%{op: :eq, mask: ^base_mask, v: 777}] =
+             ClumpMeta.block_pattern(%{op: :eq, mask: base_mask, v: 777})
+
+    # Duplicate pattern is a no-op
+    assert [%{op: :eq, mask: ^base_mask, v: 777}] =
+             ClumpMeta.block_pattern(%{op: :eq, mask: base_mask, v: 777})
+
+    # A log_id matching the pattern is blocked
+    assert ClumpMeta.pattern_matches?(777)
+    refute ClumpMeta.pattern_matches?(778)
+    assert ClumpMeta.blocked?(777)
+
+    # A second pattern
+    assert [_, _] = ClumpMeta.block_pattern(%{op: :eq, mask: base_mask, v: 1337})
+
+    assert [%{op: :eq, mask: ^base_mask, v: 1337}, %{op: :eq, mask: ^base_mask, v: 777}] =
+             ClumpMeta.patterns_list()
+
+    # filter_blocked filters entries matching patterns
+    entries = [
+      {dude, 777, 1},
+      {dude, 778, 1},
+      {guy, 1337, 1},
+      {guy, 42, 1}
+    ]
+
+    assert [{_, 778, _}, {_, 42, _}] = ClumpMeta.filter_blocked(entries)
+
+    # Unblock a pattern
+    assert [%{op: :eq, mask: ^base_mask, v: 1337}] =
+             ClumpMeta.unblock_pattern(%{op: :eq, mask: base_mask, v: 777})
+
+    refute ClumpMeta.pattern_matches?(777)
+    assert [%{op: :eq, mask: ^base_mask, v: 1337}] = ClumpMeta.patterns_list()
+
+    # 778 and 777 are no longer filtered, 1337 still is
+    assert [{_, 777, _}, {_, 778, _}, {_, 42, _}] = ClumpMeta.filter_blocked(entries)
+
+    # Clean up
+    ClumpMeta.unblock_pattern(%{op: :eq, mask: base_mask, v: 1337})
+    assert [] == ClumpMeta.patterns_list()
+    Identity.drop("dude")
+    Identity.drop("guy")
+  end
+
+  test "pattern blocking with upper byte mask" do
+    # Upper byte mask: 0x00FF000000000000 matches bits 48..55
+    # Value stored shifted: 1 << 48 = 0x0001000000000000
+    upper_mask = 0x00FF000000000000
+    shifted_1 = Bitwise.bsl(1, 48)
+
+    assert [%{op: :eq, mask: ^upper_mask, v: ^shifted_1}] =
+             ClumpMeta.block_pattern(%{op: :eq, mask: upper_mask, v: shifted_1})
+
+    # log_id with bits 48..55 = 1 should match
+    log_id_1 = Bitwise.bsl(1, 48)
+    assert ClumpMeta.pattern_matches?(log_id_1)
+
+    # log_id with bits 48..55 = 2 should not match
+    log_id_2 = Bitwise.bsl(2, 48)
+    refute ClumpMeta.pattern_matches?(log_id_2)
+
+    # log_id with bits 48..55 = 1 and lower bits = 42 should match
+    log_id_1_42 = Bitwise.bsl(1, 48) + 42
+    assert ClumpMeta.pattern_matches?(log_id_1_42)
+
+    ClumpMeta.unblock_pattern(%{op: :eq, mask: upper_mask, v: shifted_1})
+  end
+
+  test "interchange with patterns" do
+    export_dir = "/tmp/bao_test_pattern_export"
+    Identity.create("dude")
+    Identity.create("guy")
+    Baobab.append_log("need content for export", "dude")
+
+    base_mask = 0x00FFFFFFFFFFFFFF
+    ClumpMeta.block_pattern(%{op: :eq, mask: base_mask, v: 777})
+    ClumpMeta.block_pattern(%{op: :eq, mask: 0x00FF000000000000, v: Bitwise.bsl(1, 48)})
+
+    assert export_dir == Interchange.export_store(export_dir)
+
+    # Clear patterns and reimport
+    ClumpMeta.unblock_pattern(%{op: :eq, mask: base_mask, v: 777})
+    ClumpMeta.unblock_pattern(%{op: :eq, mask: 0x00FF000000000000, v: Bitwise.bsl(1, 48)})
+    assert [] == ClumpMeta.patterns_list()
+
+    assert :ok == Interchange.import_store(export_dir)
+    patterns = ClumpMeta.patterns_list()
+    assert length(patterns) == 2
+    assert Enum.any?(patterns, fn %{mask: m, v: v} -> m == base_mask and v == 777 end)
+    assert Enum.any?(patterns, fn %{mask: m, v: _v} -> m == 0x00FF000000000000 end)
+
+    # Clean up
+    ClumpMeta.unblock_pattern(%{op: :eq, mask: base_mask, v: 777})
+    ClumpMeta.unblock_pattern(%{op: :eq, mask: 0x00FF000000000000, v: Bitwise.bsl(1, 48)})
+    Identity.drop("dude")
+    Identity.drop("guy")
+    File.rm_rf(export_dir)
+  end
 end
